@@ -1,0 +1,3 @@
+[submodule "PICO-Unity-Integration-SDK"]
+	path = PICO-Unity-Integration-SDK
+	url = https://github.com/Pico-Developer/PICO-Unity-Integration-SDK.git
