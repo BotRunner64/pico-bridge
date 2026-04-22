@@ -3,7 +3,7 @@
 **日期：** 2026-04-22
 **仓库：** `pico-bridge`
 **参考：** PICO Unity 官方文档、`../XRoboToolkit-Unity-Client`
-**目标：** 在 PICO 头显与 PC Python CLI 之间建立低延迟姿态桥接，并以可验证方式推进 PC 摄像头画面到头显显示。
+**目标：** 在 PICO 头显与 PC receiver CLI 之间建立低延迟姿态桥接，并以可验证方式推进 PC 摄像头画面到头显显示。
 
 ---
 
@@ -92,13 +92,15 @@ Assets/Scripts/PicoBridge/
 - `PicoTrackingData` — 替代 `TrackingData`，去掉录制和 VST 逻辑
 - `PicoBridgeUI` — UGUI/TMP 实现，不依赖 `CustomButton`/`Toast`/`LogView`
 
-### 4.2 Python
+### 4.2 PC Receiver
 
 ```
-python/
-├── bridge.py                        # CLI 入口
-└── pico_bridge/
+pc_receiver/
+├── bridge.py                        # 本地开发入口包装器
+├── pyproject.toml                   # Python 包元数据
+└── src/pico_bridge/
     ├── __init__.py
+    ├── cli.py
     ├── protocol.py
     ├── tcp_server.py
     ├── tracking.py
@@ -122,10 +124,10 @@ python/
 2. Unity batchmode 验证 package resolve
 3. 确认 `Assets/Scripts/PicoBridge/` 目录和 `.meta` 创建策略
 
-### M1：协议和 Python server
+### M1：协议和 PC receiver
 
 **输入：** 协议规范（Section 3）
-**产出：** Python CLI 能接收并解析 VR 发来的所有包类型
+**产出：** PC receiver CLI 能接收并解析 VR 发来的所有包类型
 **依赖：** 无（可与 M0 并行）
 
 1. 实现 `protocol.py`：
@@ -140,9 +142,9 @@ python/
    - `asyncio.start_server` 监听 `63901`
    - 解析 `0x19` connect / `0x6C` version / `0x23` heartbeat / `0x6D` tracking
    - 暴露 `on_tracking_data(callback)` 接口
-4. 实现 `bridge.py` CLI：
+4. 实现 `bridge.py` / `pico_bridge.cli` CLI：
    ```bash
-   python python/bridge.py --tcp-port 63901 --print-tracking [--camera 0] [--video disabled]
+   python pc_receiver/bridge.py --tcp-port 63901 --print-tracking [--video disabled]
    ```
 
 ### M2：Unity tracking client
@@ -248,7 +250,7 @@ python/
 
 ### 阶段 A 完成
 
-- [ ] `pytest python/tests/test_protocol.py -q` 全过
+- [ ] `cd pc_receiver && python -m pytest tests/test_protocol.py -q` 全过
 - [ ] Python server 能解析 `0x19`/`0x6C`/`0x23`/`0x6D` 包
 - [ ] Unity `2022.3.62f3` 打开项目无 C# compile errors
 - [ ] Package Manager 正确解析 PICO 和 Live Preview package
@@ -274,4 +276,3 @@ python/
 | manifest 与 lock 不一致 | M0 先修 manifest，Unity 更新 lock |
 | Body/Motion Tracker 设备缺失 | UI 显示 unavailable，默认关闭 |
 | PC/头显不在同一网段 | UI 和 CLI 打印本机 IP、目标 IP、端口、连接状态 |
-

@@ -68,3 +68,4 @@ crashlytics-build.properties
 __pycache__/
 .pytest_cache/
 *.py[cod]
+.venv/

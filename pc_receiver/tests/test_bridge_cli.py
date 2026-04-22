@@ -1,4 +1,4 @@
-from bridge import build_parser
+from pico_bridge.cli import build_parser
 
 
 def test_print_tracking_defaults_to_true():

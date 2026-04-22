@@ -1,17 +1,16 @@
-#!/usr/bin/env python3
 """PICO Bridge CLI — TCP server for headset tracking data."""
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
-import sys
 from typing import Any
 
-from pico_bridge.tcp_server import PicoBridgeServer
-from pico_bridge.discovery import UdpBroadcaster
-from pico_bridge.tracking import TrackingFrame
+from .discovery import UdpBroadcaster
+from .tcp_server import PicoBridgeServer
+from .tracking import TrackingFrame
 
 _frame_count = 0
 
@@ -20,7 +19,7 @@ def _on_tracking(data: dict[str, Any]) -> None:
     global _frame_count
     _frame_count += 1
     frame = TrackingFrame.from_json(
-        __import__("json").dumps(data)
+        json.dumps(data)
     ) if isinstance(data, dict) else TrackingFrame.from_json(data)
     print(f"[{_frame_count:>6}] {frame.summary()}", flush=True)
 
@@ -38,7 +37,6 @@ async def _run(args: argparse.Namespace) -> None:
     )
     await server.start()
 
-    # Start UDP broadcast for auto-discovery
     broadcaster = UdpBroadcaster(
         tcp_port=args.tcp_port,
         advertise_ip=args.advertise_ip,
@@ -62,7 +60,7 @@ async def _run(args: argparse.Namespace) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="PICO Bridge CLI")
+    parser = argparse.ArgumentParser(description="PICO Bridge PC Receiver")
     parser.add_argument("--tcp-port", type=int, default=63901)
     parser.add_argument(
         "--print-tracking",
@@ -74,10 +72,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--advertise-ip",
         help="Override the IPv4 address announced over UDP discovery",
     )
-    parser.add_argument("--video", choices=["disabled"], default="disabled",
-                        help="Video mode (disabled for Phase A)")
-    parser.add_argument("--no-discovery", action="store_true",
-                        help="Disable UDP broadcast discovery")
+    parser.add_argument(
+        "--video",
+        choices=["disabled"],
+        default="disabled",
+        help="Video mode (disabled for Phase A)",
+    )
+    parser.add_argument(
+        "--no-discovery",
+        action="store_true",
+        help="Disable UDP broadcast discovery",
+    )
     parser.add_argument("-v", "--verbose", action="store_true")
     return parser
 
@@ -95,7 +100,3 @@ def main() -> None:
         asyncio.run(_run(args))
     except KeyboardInterrupt:
         print("\nShutting down.")
-
-
-if __name__ == "__main__":
-    main()

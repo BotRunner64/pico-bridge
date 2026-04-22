@@ -5,10 +5,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import time
 from typing import Any, Callable
 
-from .protocol import CMD, END_BYTE, HEAD_PC_TO_VR, Packet, PacketParser, pack
+from .protocol import CMD, Packet, PacketParser, pack
 
 log = logging.getLogger("pico_bridge.server")
 
@@ -35,6 +34,7 @@ class PicoBridgeServer:
         self._writer: asyncio.StreamWriter | None = None
         self._device_sn: str = ""
         self._connected = False
+        self._client_lock = asyncio.Lock()
 
     # ── public API ─────────────────────────────────────────
 
@@ -79,9 +79,17 @@ class PicoBridgeServer:
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
         addr = writer.get_extra_info("peername")
+        async with self._client_lock:
+            if self._writer is not None and not self._writer.is_closing():
+                log.warning("rejecting second client connection: %s", addr)
+                writer.close()
+                await writer.wait_closed()
+                return
+
+            self._writer = writer
+            self._connected = True
+
         log.info("client connected: %s", addr)
-        self._writer = writer
-        self._connected = True
         parser = PacketParser(accept_head=0x3F)
 
         try:
@@ -94,9 +102,13 @@ class PicoBridgeServer:
         except (ConnectionResetError, BrokenPipeError):
             log.info("client disconnected: %s", addr)
         finally:
-            self._connected = False
-            self._writer = None
+            async with self._client_lock:
+                if self._writer is writer:
+                    self._connected = False
+                    self._writer = None
+                    self._device_sn = ""
             writer.close()
+            await writer.wait_closed()
             log.info("connection closed: %s", addr)
 
     async def _dispatch(self, pkt: Packet) -> None:
@@ -140,9 +152,25 @@ class PicoBridgeServer:
 
         if fn_name == "Tracking":
             if self._on_tracking:
-                tracking_data = value if isinstance(value, dict) else json.loads(value)
+                try:
+                    tracking_data = self._decode_tracking_value(value)
+                except (json.JSONDecodeError, TypeError, UnicodeDecodeError) as e:
+                    log.warning("bad tracking payload: %s", e)
+                    return
                 self._on_tracking(tracking_data)
         else:
             log.info("function: %s", fn_name)
             if self._on_function:
                 self._on_function(fn_name, value)
+
+    @staticmethod
+    def _decode_tracking_value(value: Any) -> dict[str, Any]:
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, bytes | bytearray):
+            value = value.decode("utf-8")
+        if isinstance(value, str):
+            tracking_data = json.loads(value)
+            if isinstance(tracking_data, dict):
+                return tracking_data
+        raise TypeError(f"expected tracking object or JSON object string, got {type(value).__name__}")
