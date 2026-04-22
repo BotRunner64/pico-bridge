@@ -1,5 +1,7 @@
 {
   "dependencies": {
+    "com.unity.xr.picoxr": "file:PICO-Unity-Integration-SDK",
+    "com.unity.pico.livepreview": "file:Unity-Live-Preview-Plugin",
     "com.unity.collab-proxy": "2.12.4",
     "com.unity.ide.rider": "3.0.36",
     "com.unity.ide.visualstudio": "2.0.22",

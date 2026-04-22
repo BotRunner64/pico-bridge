@@ -63,3 +63,8 @@ crashlytics-build.properties
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 .omx/
 /.codex
+
+# Python cache and test artifacts
+__pycache__/
+.pytest_cache/
+*.py[cod]
