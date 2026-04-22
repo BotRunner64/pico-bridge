@@ -1,112 +1,127 @@
-# pico-bridge
+# PICO Bridge
 
-这是一个基于 Unity 的 PICO / VR 项目，PICO Unity SDK 与 PICO Live Preview 插件都以 Unity embedded package 的方式放在 `Packages/` 目录下进行管理，并作为仓库内容直接跟踪。
+PICO 头显与 PC 之间的 tracking 数据桥接工具。头显端采集 6DoF 追踪数据（头部、手柄、手势、身体），通过 TCP 实时发送到 PC 端 Python server。
 
 ## 环境要求
 
-- Unity：`2022.3.62f3`
-- 渲染管线：Universal Render Pipeline（URP）
+- Unity `2022.3.62f3`
+- Python `3.10+`
 - 目标平台：Android / PICO 头显
-- PICO Unity 官方文档：<https://developer.picoxr.com/zh/document/unity/>
+- 渲染管线：URP
+
+## 快速开始
+
+### 1. PC 端启动 server
+
+```bash
+cd python
+python bridge.py -v
+```
+
+启动后会：
+- 监听 TCP 63901 等待头显连接
+- UDP 广播自身 IP 到端口 29888（头显自动发现）
+
+### 2. Unity Editor 测试（无需头显）
+
+1. Unity 打开项目
+2. 菜单 `PicoBridge > Setup Scene` 自动创建 GameObject
+3. 确保 PC 端 `bridge.py` 已运行
+4. 点 Play
+
+Editor 模式下会发送模拟 tracking 数据，可以验证 TCP 连接和协议解析。
+
+### 3. 头显部署
+
+1. `PicoBridge > Validate Project Settings` 检查配置
+2. `File > Build Settings > Android > Build And Run`
+3. 头显启动后自动发现 PC server 并连接
+4. PC 终端可看到实时 tracking 数据流
 
 ## 目录结构
 
-- `Assets/`：项目场景、运行时代码、编辑器代码和 Unity 资源
-- `Packages/manifest.json`：Unity Package Manager 依赖配置
-- `Packages/PICO-Unity-Integration-SDK/`：仓库内置的 PICO SDK，对应包 `com.unity.xr.picoxr`
-- `Packages/Unity-Live-Preview-Plugin/`：本地 PICO Live Preview 包，对应包 `com.unity.pico.livepreview`
-- `ProjectSettings/`：Unity 项目设置
-- `AGENTS.md`：项目内开发代理约定
+```
+Assets/Scripts/PicoBridge/
+├── PicoBridgeManager.cs          # 主控：TCP + UDP 发现 + tracking 采集
+├── Network/
+│   ├── ByteBuffer.cs             # TCP 流缓冲区
+│   ├── NetCMD.cs                 # 协议常量
+│   ├── NetPacket.cs              # 解析后的包结构
+│   ├── PackageHandle.cs          # 二进制协议编解码
+│   ├── PicoTcpClient.cs          # TCP 客户端（自动重连、心跳）
+│   └── UdpDiscovery.cs           # UDP 广播监听，自动发现 server
+├── Tracking/
+│   ├── PicoTrackingCollector.cs   # PXR 原生 API 采集 tracking 数据
+│   └── MockTrackingData.cs        # Editor 模式模拟数据
+├── UI/
+│   └── PicoBridgeUI.cs            # IMGUI 连接面板
+└── Editor/
+    └── PicoBridgeSceneSetup.cs    # 菜单工具：自动搭建 scene
 
-## 项目初始化
+python/
+├── bridge.py                      # CLI 入口
+├── pico_bridge/
+│   ├── protocol.py                # 二进制协议编解码
+│   ├── tcp_server.py              # asyncio TCP server
+│   ├── discovery.py               # UDP 广播
+│   └── tracking.py                # tracking 数据解析
+└── tests/
+    └── test_protocol.py           # 协议单元测试
+```
 
-首次拉取仓库后，直接进入项目目录即可：
+## 协议格式
+
+```
+[HEAD:1][CMD:1][LEN:4 LE][DATA:N][TIMESTAMP:8 LE][END:1]
+```
+
+| 方向 | HEAD | END |
+|------|------|-----|
+| VR → PC | `0x3F` | `0xA5` |
+| PC → VR | `0xCF` | `0xA5` |
+
+主要命令：
+
+| CMD | 值 | 说明 |
+|-----|------|------|
+| CONNECT | `0x19` | 连接握手，payload 为 `deviceSN\|-1` |
+| SEND_VERSION | `0x6C` | 版本信息 |
+| TO_CONTROLLER_FUNCTION | `0x6D` | VR→PC 功能消息（含 Tracking） |
+| CLIENT_HEARTBEAT | `0x23` | 心跳（10s 间隔） |
+| FROM_CONTROLLER_COMMON_FUNCTION | `0x5F` | PC→VR 功能消息 |
+| TCPIP | `0x7E` | UDP 发现广播 |
+
+## Python CLI 参数
+
+```
+python bridge.py [OPTIONS]
+
+--tcp-port          TCP 监听端口（默认 63901）
+--no-print-tracking 不打印 tracking 帧
+--advertise-ip      指定 UDP 广播的 IP（默认自动检测）
+--no-discovery      禁用 UDP 广播
+-v, --verbose       详细日志
+```
+
+## 运行测试
 
 ```bash
-git clone <repo-url>
-cd pico-bridge
+cd python
+python -m pytest tests/ -v
 ```
 
-然后使用 Unity `2022.3.62f3` 打开项目。
+## 开发配置
 
-## Unity 包管理说明
+项目配置已通过代码设置完成：
 
-当前项目中的 PICO 相关包直接放在 `Packages/` 下，Unity 会把它们识别为 embedded package：
-
-- `Packages/PICO-Unity-Integration-SDK/package.json`
-- `Packages/Unity-Live-Preview-Plugin/package.json`
-
-进入unity之后勾选默认配置
-![alt text](image.png)
-
-打开 Unity 后建议检查：
-
-1. 打开 `Window > Package Manager`
-2. 确认 `PICO Integration` 已显示
-3. 确认 `PICO Live Preview` 已显示
-4. 等待 Unity 完成依赖解析，并在需要时更新 `Packages/packages-lock.json`
-
-不要把这些包复制到 `Assets/` 中。
-
-## PICO / XR 配置步骤
-
-在 Unity 中按以下顺序配置：
-
-1. 打开 `File > Build Settings`
-2. 选择 `Android` 并切换平台
-3. 打开 `Edit > Project Settings > XR Plug-in Management`
-4. 在 Android 平台下启用 PICO Provider
-5. 打开 XR / PICO 的 Project Validation 面板并修复提示项
-6. 在 Player Settings 中设置真实可用的 Android 包名
-
-涉及 PICO SDK 接口、平台行为、接入方式时，优先查阅官方文档：
-
-<https://developer.picoxr.com/zh/document/unity/>
-
-## Live Preview 开发说明
-
-Live Preview 插件位于：
-
-- `Packages/Unity-Live-Preview-Plugin/`
-
-常用入口文件：
-
-- `Packages/Unity-Live-Preview-Plugin/Runtime/Scripts/PXR_PTLoader.cs`
-- `Packages/Unity-Live-Preview-Plugin/Runtime/Scripts/PXR_PTSettings.cs`
-- `Packages/Unity-Live-Preview-Plugin/Runtime/UnitySubsystemsManifest.json`
-
-主要运行时命名空间：
-
-```csharp
-Unity.XR.PICO.LivePreview
-```
-
-如果要查找 Live Preview 的加载器、配置项、子系统入口或输入相关实现，优先从上述文件开始。
+- `Packages/manifest.json`：声明了 PICO SDK 和 Live Preview embedded package
+- `Assets/Resources/PXR_ProjectSetting.asset`：已开启 handTracking、bodyTracking、videoSeeThrough
+- `ProjectSettings/ProjectSettings.asset`：applicationIdentifier 为 `com.picobridge.app`，ForceInternetPermission 已开启
+- XR Plug-in Management：Android 平台已选择 PICO Loader
 
 ## 开发约定
 
-1. 运行时代码放在 `Assets/` 下
-2. 编辑器专用代码放在 `Editor/` 目录下
-3. 新增、移动、删除 Unity 资源时要保留 `.meta` 文件
-4. 包依赖优先通过 `Packages/manifest.json` 管理
-5. Unity 解析包之后，保持 `Packages/packages-lock.json` 同步
-6. 不要提交 Unity 自动生成目录，如 `Library/`、`Temp/`、`Obj/`、`Logs/`、`Build/`、`Builds/`、`UserSettings/`
-
-## 提交前验证
-
-在提交代码或包配置前，建议至少完成以下检查：
-
-1. 使用 Unity `2022.3.62f3` 打开项目
-2. 确认 Unity Package Manager 没有解析错误
-3. 检查 Console 中没有脚本编译错误
-4. 如果修改了 XR / PICO 配置，重新跑一遍 Project Validation
-5. 如果涉及设备能力，尽量在 PICO 真机上测试
-
-## 常用命令
-
-查看本地包元数据：
-
-```bash
-cat Packages/PICO-Unity-Integration-SDK/package.json
-cat Packages/Unity-Live-Preview-Plugin/package.json
-```
+1. 运行时代码放在 `Assets/Scripts/PicoBridge/` 下
+2. 编辑器代码放在 `Assets/Scripts/PicoBridge/Editor/` 下
+3. 新增文件保留 `.meta` 文件
+4. 不提交 `Library/`、`Temp/`、`Obj/`、`Logs/`、`Build/`、`UserSettings/`
