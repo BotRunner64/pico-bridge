@@ -7,8 +7,40 @@ using PicoBridge.UI;
 
 namespace PicoBridge.Editor
 {
+    [InitializeOnLoad]
     public static class PicoBridgeSceneSetup
     {
+        static PicoBridgeSceneSetup()
+        {
+            EditorApplication.playModeStateChanged += OnPlayModeChanged;
+        }
+
+        private static void OnPlayModeChanged(PlayModeStateChange state)
+        {
+            if (state != PlayModeStateChange.ExitingEditMode) return;
+
+            // Only auto-setup if no PicoBridgeManager exists in the scene
+            if (Object.FindObjectOfType<PicoBridgeManager>() != null) return;
+
+            Debug.Log("[PicoBridge] No PicoBridgeManager found — running auto-setup before Play.");
+            AutoSetupScene();
+        }
+
+        private static void AutoSetupScene()
+        {
+            var root = GameObject.Find("PicoBridge");
+            if (root == null)
+                root = new GameObject("PicoBridge");
+
+            if (root.GetComponent<PicoBridgeManager>() == null)
+                root.AddComponent<PicoBridgeManager>();
+
+            if (root.GetComponent<PicoBridgeUI>() == null)
+                root.AddComponent<PicoBridgeUI>();
+
+            EditorSceneManager.MarkSceneDirty(root.scene);
+        }
+
         [MenuItem("PicoBridge/Setup Scene")]
         public static void SetupScene()
         {
