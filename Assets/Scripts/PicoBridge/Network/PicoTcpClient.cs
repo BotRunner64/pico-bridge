@@ -61,7 +61,6 @@ namespace PicoBridge.Network
             {
                 _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
                 _socket.SendTimeout = 15000;
-                _socket.ReceiveTimeout = 25000;
                 _socket.NoDelay = true;
                 _socket.BeginConnect(serverAddress, serverPort, OnConnectCallback, null);
             }

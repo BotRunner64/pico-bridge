@@ -81,13 +81,17 @@ class PicoBridgeServer:
         addr = writer.get_extra_info("peername")
         async with self._client_lock:
             if self._writer is not None and not self._writer.is_closing():
-                log.warning("rejecting second client connection: %s", addr)
-                writer.close()
-                await writer.wait_closed()
-                return
+                log.info("replacing stale connection with new client: %s", addr)
+                try:
+                    self._writer.close()
+                except Exception:
+                    pass
+                self._writer = None
+                self._connected = False
 
             self._writer = writer
             self._connected = True
+            self._device_sn = ""
 
         log.info("client connected: %s", addr)
         parser = PacketParser(accept_head=0x3F)
@@ -98,7 +102,7 @@ class PicoBridgeServer:
                 if not data:
                     break
                 for pkt in parser.feed(data):
-                    await self._dispatch(pkt)
+                    await self._dispatch(pkt, writer)
         except (ConnectionResetError, BrokenPipeError):
             log.info("client disconnected: %s", addr)
         finally:
@@ -111,35 +115,46 @@ class PicoBridgeServer:
             await writer.wait_closed()
             log.info("connection closed: %s", addr)
 
-    async def _dispatch(self, pkt: Packet) -> None:
+    def _is_active_writer(self, writer: asyncio.StreamWriter) -> bool:
+        return self._writer is writer and self._connected and not writer.is_closing()
+
+    async def _dispatch(self, pkt: Packet, writer: asyncio.StreamWriter) -> None:
         if pkt.cmd == CMD.CONNECT:
-            self._handle_connect(pkt)
+            self._handle_connect(pkt, writer)
         elif pkt.cmd == CMD.SEND_VERSION:
-            self._handle_version(pkt)
+            self._handle_version(pkt, writer)
         elif pkt.cmd == CMD.CLIENT_HEARTBEAT:
-            self._handle_heartbeat(pkt)
+            self._handle_heartbeat(pkt, writer)
         elif pkt.cmd == CMD.TO_CONTROLLER_FUNCTION:
-            await self._handle_function(pkt)
+            await self._handle_function(pkt, writer)
         elif pkt.cmd == CMD.CUSTOM_TO_PC:
             log.debug("custom_to_pc: %d bytes", len(pkt.data))
         else:
             log.debug("unknown cmd: 0x%02X (%d bytes)", pkt.cmd, len(pkt.data))
 
-    def _handle_connect(self, pkt: Packet) -> None:
+    def _handle_connect(self, pkt: Packet, writer: asyncio.StreamWriter) -> None:
+        if not self._is_active_writer(writer):
+            return
         text = pkt.data.decode("utf-8", errors="replace")
-        # format: "deviceSN|-1"
         parts = text.split("|")
         self._device_sn = parts[0] if parts else text
         log.info("device connected: SN=%s", self._device_sn)
 
-    def _handle_version(self, pkt: Packet) -> None:
+    def _handle_version(self, pkt: Packet, writer: asyncio.StreamWriter) -> None:
+        if not self._is_active_writer(writer):
+            return
         text = pkt.data.decode("utf-8", errors="replace")
         log.info("device version: %s", text)
 
-    def _handle_heartbeat(self, pkt: Packet) -> None:
+    def _handle_heartbeat(self, pkt: Packet, writer: asyncio.StreamWriter) -> None:
+        if not self._is_active_writer(writer):
+            return
         log.debug("heartbeat from %s", self._device_sn or "unknown")
+        writer.write(pack(CMD.CLIENT_HEARTBEAT))
 
-    async def _handle_function(self, pkt: Packet) -> None:
+    async def _handle_function(self, pkt: Packet, writer: asyncio.StreamWriter) -> None:
+        if not self._is_active_writer(writer):
+            return
         text = pkt.data.decode("utf-8", errors="replace")
         try:
             obj = json.loads(text)

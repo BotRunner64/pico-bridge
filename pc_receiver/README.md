@@ -17,6 +17,15 @@ pip install -e .
 pico-bridge-receiver -v
 ```
 
+如需实时 3D 可视化，安装可选依赖后使用 `--viz` 启动 Rerun，或用 `--viz-connect` 连接已运行的 viewer：
+
+```bash
+cd pc_receiver
+pip install -e ".[viz]"
+pico-bridge-receiver --viz
+pico-bridge-receiver --viz-connect
+```
+
 ## 目录结构
 
 ```text

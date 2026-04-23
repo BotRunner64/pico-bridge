@@ -9,6 +9,9 @@ description = "PC-side receiver for the PICO Bridge tracking pipeline"
 readme = "README.md"
 requires-python = ">=3.10"
 
+[project.optional-dependencies]
+viz = ["rerun-sdk>=0.18", "numpy>=1.24"]
+
 [project.scripts]
 pico-bridge-receiver = "pico_bridge.cli:main"
 
