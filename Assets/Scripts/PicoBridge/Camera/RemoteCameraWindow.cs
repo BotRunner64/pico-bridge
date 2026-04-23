@@ -1,4 +1,9 @@
+using System;
 using System.Collections;
+using System.Collections.Generic;
+using System.Net;
+using System.Net.Sockets;
+using System.Threading;
 using UnityEngine;
 using UnityEngine.UI;
 using PicoBridge.Network;
@@ -6,18 +11,17 @@ using PicoBridge.Network;
 namespace PicoBridge.Camera
 {
     /// <summary>
-    /// Manages the video preview lifecycle: creates a Texture2D, initialises
-    /// MediaDecoder, starts its TCP server, and sends StartReceivePcCamera
-    /// to the PC bridge so it begins streaming H.264.
-    /// Optionally drives a RawImage for display.
+    /// Manages the video preview lifecycle.
+    /// - Android: MediaDecoder JNI (H.264 over TCP)
+    /// - Editor:  Built-in TCP listener receiving length-prefixed JPEG frames
     /// </summary>
     public class RemoteCameraWindow : MonoBehaviour
     {
         [Header("Video Settings")]
-        public int resolutionWidth = 2160;
-        public int resolutionHeight = 1440;
-        public int videoFps = 60;
-        public int bitrate = 40 * 1024 * 1024;
+        public int resolutionWidth = 1280;
+        public int resolutionHeight = 720;
+        public int videoFps = 30;
+        public int bitrate = 8 * 1024 * 1024;
         public int decoderPort = 19000;
 
         [Header("Display")]
@@ -28,12 +32,16 @@ namespace PicoBridge.Camera
         private bool _decoderActive;
         private PicoTcpClient _tcp;
 
+        // Editor MJPEG receiver
+        private TcpListener _editorListener;
+        private Thread _editorThread;
+        private volatile bool _editorRunning;
+        private readonly object _frameLock = new object();
+        private byte[] _pendingJpeg;
+
         public Texture2D Texture => _texture;
         public bool IsActive => _decoderActive;
 
-        /// <summary>
-        /// Call to start the camera preview pipeline.
-        /// </summary>
         public void StartPreview(PicoTcpClient tcp)
         {
             if (_decoderActive) return;
@@ -41,14 +49,15 @@ namespace PicoBridge.Camera
             StartCoroutine(StartListenCoroutine());
         }
 
-        /// <summary>
-        /// Stop preview and release decoder resources.
-        /// </summary>
         public void StopPreview()
         {
             if (!_decoderActive) return;
             _decoderActive = false;
-            MediaDecoder.Release();
+
+            StopEditorReceiver();
+
+            if (IsAndroidDevice())
+                MediaDecoder.Release();
 
             if (_tcp != null)
                 _tcp.SendFunction("StopReceivePcCamera", "\"\"");
@@ -66,53 +75,177 @@ namespace PicoBridge.Camera
 
         private IEnumerator StartListenCoroutine()
         {
-            Debug.Log($"[RemoteCameraWindow] Starting preview {resolutionWidth}x{resolutionHeight} @{videoFps}fps port={decoderPort}");
+            Debug.Log($"[RemoteCameraWindow] Starting preview " +
+                $"{resolutionWidth}x{resolutionHeight} @{videoFps}fps port={decoderPort}");
 
-            _texture = new Texture2D(resolutionWidth, resolutionHeight, TextureFormat.RGB24, false, false);
+            _texture = new Texture2D(resolutionWidth, resolutionHeight,
+                TextureFormat.RGB24, false, false);
             yield return null;
 
-            MediaDecoder.Initialize((int)_texture.GetNativeTexturePtr(), resolutionWidth, resolutionHeight);
-            MediaDecoder.StartServer(decoderPort, false);
+            if (IsAndroidDevice())
+            {
+                // Android: use native H.264 decoder
+                MediaDecoder.Initialize(
+                    (int)_texture.GetNativeTexturePtr(),
+                    resolutionWidth, resolutionHeight);
+                MediaDecoder.StartServer(decoderPort, false);
+            }
+            else
+            {
+                // Editor: start TCP listener for MJPEG
+                StartEditorReceiver();
+            }
+
             _decoderActive = true;
             yield return null;
 
-            // Tell the PC bridge to start sending H.264 to our decoder port
-            if (_tcp != null)
-            {
-                string localIp = NetUtils.GetLocalIPv4();
-                string cameraJson = $"{{\"ip\":\"{localIp}\",\"port\":{decoderPort},"
-                    + $"\"width\":{resolutionWidth},\"height\":{resolutionHeight},"
-                    + $"\"fps\":{videoFps},\"bitrate\":{bitrate}}}";
-                _tcp.SendFunction("StartReceivePcCamera", cameraJson);
-                Debug.Log($"[RemoteCameraWindow] Sent StartReceivePcCamera to PC");
-            }
+            SendCameraRequest();
+        }
+
+        private void SendCameraRequest()
+        {
+            if (_tcp == null) return;
+
+            string localIp = NetUtils.GetLocalIPv4();
+            string codec = IsAndroidDevice() ? "h264" : "mjpeg";
+            string cameraJson =
+                $"{{\"ip\":\"{localIp}\",\"port\":{decoderPort}," +
+                $"\"width\":{resolutionWidth},\"height\":{resolutionHeight}," +
+                $"\"fps\":{videoFps},\"bitrate\":{bitrate}," +
+                $"\"codec\":\"{codec}\"}}";
+            _tcp.SendFunction("StartReceivePcCamera", cameraJson);
+            Debug.Log($"[RemoteCameraWindow] Sent StartReceivePcCamera " +
+                $"(codec={codec}) to PC");
         }
 
         private void Update()
         {
             if (!_decoderActive || _texture == null) return;
 
-            if (Application.platform == RuntimePlatform.Android)
+            if (IsAndroidDevice())
             {
                 if (MediaDecoder.IsUpdateFrame())
                 {
                     MediaDecoder.UpdateTexture();
                     GL.InvalidateState();
-
-                    if (displayImage != null && displayImage.texture != _texture)
-                        displayImage.texture = _texture;
+                    AssignDisplay();
+                }
+            }
+            else
+            {
+                // Editor: apply pending JPEG frame
+                byte[] jpeg = null;
+                lock (_frameLock)
+                {
+                    if (_pendingJpeg != null)
+                    {
+                        jpeg = _pendingJpeg;
+                        _pendingJpeg = null;
+                    }
+                }
+                if (jpeg != null)
+                {
+                    _texture.LoadImage(jpeg);
+                    AssignDisplay();
                 }
             }
         }
 
-        private void OnDisable()
+        private void AssignDisplay()
         {
-            StopPreview();
+            if (displayImage != null && displayImage.texture != _texture)
+                displayImage.texture = _texture;
         }
 
-        private void OnDestroy()
+        // ── Editor MJPEG TCP receiver ────────────────────
+
+        private void StartEditorReceiver()
         {
-            StopPreview();
+            _editorRunning = true;
+            _editorListener = new TcpListener(IPAddress.Any, decoderPort);
+            _editorListener.Start();
+            _editorThread = new Thread(EditorReceiverLoop)
+            {
+                IsBackground = true, Name = "MjpegReceiver"
+            };
+            _editorThread.Start();
+            Debug.Log($"[RemoteCameraWindow] Editor MJPEG listener on port {decoderPort}");
         }
+
+        private void StopEditorReceiver()
+        {
+            _editorRunning = false;
+            try { _editorListener?.Stop(); } catch { }
+            _editorListener = null;
+            _editorThread = null;
+        }
+
+        private void EditorReceiverLoop()
+        {
+            while (_editorRunning)
+            {
+                TcpClient client = null;
+                try
+                {
+                    client = _editorListener.AcceptTcpClient();
+                    Debug.Log("[RemoteCameraWindow] PC video sender connected");
+                    var stream = client.GetStream();
+                    var lenBuf = new byte[4];
+
+                    while (_editorRunning && client.Connected)
+                    {
+                        // Read 4-byte big-endian length prefix
+                        if (!ReadExact(stream, lenBuf, 4))
+                            break;
+                        int len = (lenBuf[0] << 24) | (lenBuf[1] << 16)
+                                | (lenBuf[2] << 8) | lenBuf[3];
+                        if (len <= 0 || len > 10_000_000)
+                            break;
+
+                        // Read JPEG payload
+                        var jpeg = new byte[len];
+                        if (!ReadExact(stream, jpeg, len))
+                            break;
+
+                        lock (_frameLock)
+                            _pendingJpeg = jpeg;
+                    }
+                }
+                catch (SocketException) { }
+                catch (ObjectDisposedException) { }
+                catch (System.IO.IOException) { }
+                finally
+                {
+                    try { client?.Close(); } catch { }
+                }
+
+                if (_editorRunning)
+                    Debug.Log("[RemoteCameraWindow] PC video sender disconnected, waiting...");
+            }
+        }
+
+        private static bool ReadExact(NetworkStream stream, byte[] buf, int count)
+        {
+            int offset = 0;
+            while (offset < count)
+            {
+                int n = stream.Read(buf, offset, count - offset);
+                if (n <= 0) return false;
+                offset += n;
+            }
+            return true;
+        }
+
+        private static bool IsAndroidDevice()
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            return true;
+#else
+            return false;
+#endif
+        }
+
+        private void OnDisable() => StopPreview();
+        private void OnDestroy() => StopPreview();
     }
 }

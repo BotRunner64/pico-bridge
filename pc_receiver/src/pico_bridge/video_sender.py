@@ -28,6 +28,7 @@ class CameraRequest:
     height: int = 1440
     fps: int = 60
     bitrate: int = 40 * 1024 * 1024
+    codec: str = "h264"  # "h264" for Android, "mjpeg" for Editor
 
     @classmethod
     def from_json(cls, obj: dict[str, Any]) -> "CameraRequest":
@@ -38,6 +39,7 @@ class CameraRequest:
             height=int(obj.get("height", 1440)),
             fps=int(obj.get("fps", 60)),
             bitrate=int(obj.get("bitrate", 40 * 1024 * 1024)),
+            codec=str(obj.get("codec", "h264")),
         )
 
 
@@ -125,6 +127,100 @@ class VideoSender:
         self._send_task = asyncio.create_task(self._stream_loop(req))
 
     async def _stream_loop(self, req: CameraRequest) -> None:
+        """Encode frames and push to headset TCP server."""
+        if req.codec == "mjpeg":
+            await self._stream_mjpeg(req)
+        else:
+            await self._stream_h264(req)
+
+    async def _stream_mjpeg(self, req: CameraRequest) -> None:
+        """Send length-prefixed JPEG frames for Editor preview."""
+        import av
+        import struct
+
+        writer: asyncio.StreamWriter | None = None
+        input_container = None
+
+        try:
+            _, writer = await asyncio.wait_for(
+                asyncio.open_connection(req.ip, req.port),
+                timeout=10.0,
+            )
+            log.info("Connected to Editor MJPEG receiver")
+
+            # MJPEG encoder
+            codec = av.CodecContext.create("mjpeg", "w")
+            codec.width = req.width
+            codec.height = req.height
+            codec.pix_fmt = "yuvj420p"
+            codec.time_base = Fraction(1, req.fps)
+            codec.open()
+
+            frame_num = 0
+            frame_interval = 1.0 / req.fps
+
+            if self._source == "camera":
+                input_container = _open_camera(
+                    self._camera_device, req.width, req.height, req.fps,
+                )
+                stream = input_container.streams.video[0]
+                for raw_frame in input_container.decode(stream):
+                    if not self._running:
+                        break
+                    if raw_frame.format.name != "yuvj420p" or \
+                       raw_frame.width != req.width or raw_frame.height != req.height:
+                        raw_frame = raw_frame.reformat(
+                            width=req.width, height=req.height, format="yuvj420p",
+                        )
+                    raw_frame.pts = frame_num
+                    for packet in codec.encode(raw_frame):
+                        jpeg_data = bytes(packet)
+                        header = struct.pack(">I", len(jpeg_data))
+                        writer.write(header + jpeg_data)
+                        await writer.drain()
+                    frame_num += 1
+
+            elif self._source == "test-pattern":
+                while self._running:
+                    t_start = time.monotonic()
+                    frame = _make_test_frame(req.width, req.height, frame_num)
+                    # Convert yuv420p -> yuvj420p for mjpeg
+                    frame = frame.reformat(format="yuvj420p")
+                    for packet in codec.encode(frame):
+                        jpeg_data = bytes(packet)
+                        header = struct.pack(">I", len(jpeg_data))
+                        writer.write(header + jpeg_data)
+                        await writer.drain()
+                    frame_num += 1
+                    elapsed = time.monotonic() - t_start
+                    if elapsed < frame_interval:
+                        await asyncio.sleep(frame_interval - elapsed)
+
+            # Flush
+            for packet in codec.encode():
+                jpeg_data = bytes(packet)
+                header = struct.pack(">I", len(jpeg_data))
+                writer.write(header + jpeg_data)
+                await writer.drain()
+
+        except asyncio.TimeoutError:
+            log.error("Timeout connecting to Editor at %s:%d", req.ip, req.port)
+        except (ConnectionRefusedError, OSError) as e:
+            log.error("Connection to Editor failed: %s", e)
+        except (ConnectionResetError, BrokenPipeError):
+            log.warning("Editor connection lost")
+        finally:
+            self._running = False
+            if input_container is not None:
+                input_container.close()
+            if writer:
+                writer.close()
+                try:
+                    await writer.wait_closed()
+                except Exception:
+                    pass
+
+    async def _stream_h264(self, req: CameraRequest) -> None:
         """Encode frames and push H.264 packets to headset TCP server."""
         import av
 

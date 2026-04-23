@@ -54,6 +54,16 @@ class TestCameraRequest:
         assert req.port == 8080
         assert req.width == 1280
 
+    def test_from_json_codec_default_h264(self):
+        obj = {"ip": "10.0.0.1", "port": 9000}
+        req = CameraRequest.from_json(obj)
+        assert req.codec == "h264"
+
+    def test_from_json_codec_mjpeg(self):
+        obj = {"ip": "10.0.0.1", "port": 9000, "codec": "mjpeg"}
+        req = CameraRequest.from_json(obj)
+        assert req.codec == "mjpeg"
+
 
 # ── PyAV encoder and test frame ──────────────────────────
 
