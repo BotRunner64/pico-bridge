@@ -136,6 +136,7 @@ class VideoSender:
     async def _stream_mjpeg(self, req: CameraRequest) -> None:
         """Send length-prefixed JPEG frames for Editor preview."""
         import av
+        import io
         import struct
 
         writer: asyncio.StreamWriter | None = None
@@ -148,17 +149,17 @@ class VideoSender:
             )
             log.info("Connected to Editor MJPEG receiver")
 
-            # MJPEG encoder
-            codec = av.CodecContext.create("mjpeg", "w")
-            codec.width = req.width
-            codec.height = req.height
-            codec.pix_fmt = "yuvj420p"
-            codec.time_base = Fraction(1, req.fps)
-            codec.open()
-
-            frame_num = 0
             frame_interval = 1.0 / req.fps
             loop = asyncio.get_running_loop()
+
+            def _encode_jpeg(frame: av.VideoFrame) -> bytes:
+                """Convert a video frame to JPEG bytes via PIL."""
+                img = frame.to_image()
+                if img.size != (req.width, req.height):
+                    img = img.resize((req.width, req.height))
+                buf = io.BytesIO()
+                img.save(buf, format="JPEG", quality=80)
+                return buf.getvalue()
 
             if self._source == "camera":
                 input_container = _open_camera(
@@ -166,7 +167,6 @@ class VideoSender:
                 )
                 stream = input_container.streams.video[0]
 
-                # Camera decode is blocking — run in thread via queue
                 frame_queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=2)
 
                 def _decode_camera():
@@ -174,21 +174,11 @@ class VideoSender:
                         for raw_frame in input_container.decode(stream):
                             if not self._running:
                                 break
-                            if raw_frame.format.name != "yuvj420p" or \
-                               raw_frame.width != req.width or raw_frame.height != req.height:
-                                raw_frame = raw_frame.reformat(
-                                    width=req.width, height=req.height, format="yuvj420p",
-                                )
-                            nonlocal frame_num
-                            raw_frame.pts = frame_num
-                            for packet in codec.encode(raw_frame):
-                                jpeg_data = bytes(packet)
-                                header = struct.pack(">I", len(jpeg_data))
-                                # Put into queue, blocking if full (backpressure)
-                                asyncio.run_coroutine_threadsafe(
-                                    frame_queue.put(header + jpeg_data), loop
-                                ).result(timeout=5)
-                            frame_num += 1
+                            jpeg_data = _encode_jpeg(raw_frame)
+                            header = struct.pack(">I", len(jpeg_data))
+                            asyncio.run_coroutine_threadsafe(
+                                frame_queue.put(header + jpeg_data), loop
+                            ).result(timeout=5)
                     except Exception as e:
                         log.error("Camera decode error: %s", e)
                     finally:
@@ -205,27 +195,18 @@ class VideoSender:
                     await writer.drain()
 
             elif self._source == "test-pattern":
+                frame_num = 0
                 while self._running:
                     t_start = time.monotonic()
                     frame = _make_test_frame(req.width, req.height, frame_num)
-                    # Convert yuv420p -> yuvj420p for mjpeg
-                    frame = frame.reformat(format="yuvj420p")
-                    for packet in codec.encode(frame):
-                        jpeg_data = bytes(packet)
-                        header = struct.pack(">I", len(jpeg_data))
-                        writer.write(header + jpeg_data)
-                        await writer.drain()
+                    jpeg_data = _encode_jpeg(frame)
+                    header = struct.pack(">I", len(jpeg_data))
+                    writer.write(header + jpeg_data)
+                    await writer.drain()
                     frame_num += 1
                     elapsed = time.monotonic() - t_start
                     if elapsed < frame_interval:
                         await asyncio.sleep(frame_interval - elapsed)
-
-            # Flush
-            for packet in codec.encode():
-                jpeg_data = bytes(packet)
-                header = struct.pack(">I", len(jpeg_data))
-                writer.write(header + jpeg_data)
-                await writer.drain()
 
         except asyncio.TimeoutError:
             log.error("Timeout connecting to Editor at %s:%d", req.ip, req.port)
