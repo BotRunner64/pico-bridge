@@ -74,7 +74,7 @@ namespace PicoBridge.UI
 
             float scale = Screen.dpi > 0 ? Screen.dpi / 160f : 1f;
             int w = (int)(400 * scale);
-            int h = (int)(460 * scale);
+            int h = (int)(800 * scale);
             int x = (Screen.width - w) / 2;
             int y = (int)(20 * scale);
 
@@ -152,7 +152,20 @@ namespace PicoBridge.UI
             }
 
             if (_manager.Camera != null && _manager.Camera.IsActive)
+            {
                 GUILayout.Label("  Camera: streaming", style);
+
+                // Draw the camera texture
+                var tex = _manager.Camera.Texture;
+                if (tex != null)
+                {
+                    float aspect = (float)tex.width / tex.height;
+                    float previewW = w - 20 * scale;
+                    float previewH = previewW / aspect;
+                    var rect = GUILayoutUtility.GetRect(previewW, previewH);
+                    GUI.DrawTexture(rect, tex, ScaleMode.ScaleToFit);
+                }
+            }
 
             GUILayout.EndArea();
         }
