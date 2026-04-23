@@ -158,27 +158,51 @@ class VideoSender:
 
             frame_num = 0
             frame_interval = 1.0 / req.fps
+            loop = asyncio.get_running_loop()
 
             if self._source == "camera":
                 input_container = _open_camera(
                     self._camera_device, req.width, req.height, req.fps,
                 )
                 stream = input_container.streams.video[0]
-                for raw_frame in input_container.decode(stream):
-                    if not self._running:
+
+                # Camera decode is blocking — run in thread via queue
+                frame_queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=2)
+
+                def _decode_camera():
+                    try:
+                        for raw_frame in input_container.decode(stream):
+                            if not self._running:
+                                break
+                            if raw_frame.format.name != "yuvj420p" or \
+                               raw_frame.width != req.width or raw_frame.height != req.height:
+                                raw_frame = raw_frame.reformat(
+                                    width=req.width, height=req.height, format="yuvj420p",
+                                )
+                            nonlocal frame_num
+                            raw_frame.pts = frame_num
+                            for packet in codec.encode(raw_frame):
+                                jpeg_data = bytes(packet)
+                                header = struct.pack(">I", len(jpeg_data))
+                                # Put into queue, blocking if full (backpressure)
+                                asyncio.run_coroutine_threadsafe(
+                                    frame_queue.put(header + jpeg_data), loop
+                                ).result(timeout=5)
+                            frame_num += 1
+                    except Exception as e:
+                        log.error("Camera decode error: %s", e)
+                    finally:
+                        asyncio.run_coroutine_threadsafe(frame_queue.put(None), loop)
+
+                decode_thread = threading.Thread(target=_decode_camera, daemon=True)
+                decode_thread.start()
+
+                while self._running:
+                    data = await frame_queue.get()
+                    if data is None:
                         break
-                    if raw_frame.format.name != "yuvj420p" or \
-                       raw_frame.width != req.width or raw_frame.height != req.height:
-                        raw_frame = raw_frame.reformat(
-                            width=req.width, height=req.height, format="yuvj420p",
-                        )
-                    raw_frame.pts = frame_num
-                    for packet in codec.encode(raw_frame):
-                        jpeg_data = bytes(packet)
-                        header = struct.pack(">I", len(jpeg_data))
-                        writer.write(header + jpeg_data)
-                        await writer.drain()
-                    frame_num += 1
+                    writer.write(data)
+                    await writer.drain()
 
             elif self._source == "test-pattern":
                 while self._running:
@@ -244,21 +268,40 @@ class VideoSender:
                     self._camera_device, req.width, req.height, req.fps,
                 )
                 stream = input_container.streams.video[0]
+                loop = asyncio.get_running_loop()
+                frame_queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=2)
 
-                for raw_frame in input_container.decode(stream):
-                    if not self._running:
+                def _decode_h264():
+                    try:
+                        nonlocal frame_num
+                        for raw_frame in input_container.decode(stream):
+                            if not self._running:
+                                break
+                            if raw_frame.format.name != "yuv420p" or \
+                               raw_frame.width != req.width or raw_frame.height != req.height:
+                                raw_frame = raw_frame.reformat(
+                                    width=req.width, height=req.height, format="yuv420p",
+                                )
+                            raw_frame.pts = frame_num
+                            for packet in encoder.encode(raw_frame):
+                                asyncio.run_coroutine_threadsafe(
+                                    frame_queue.put(bytes(packet)), loop
+                                ).result(timeout=5)
+                            frame_num += 1
+                    except Exception as e:
+                        log.error("Camera decode error: %s", e)
+                    finally:
+                        asyncio.run_coroutine_threadsafe(frame_queue.put(None), loop)
+
+                decode_thread = threading.Thread(target=_decode_h264, daemon=True)
+                decode_thread.start()
+
+                while self._running:
+                    data = await frame_queue.get()
+                    if data is None:
                         break
-                    # Reformat to encoder's expected format if needed
-                    if raw_frame.format.name != "yuv420p" or \
-                       raw_frame.width != req.width or raw_frame.height != req.height:
-                        raw_frame = raw_frame.reformat(
-                            width=req.width, height=req.height, format="yuv420p",
-                        )
-                    raw_frame.pts = frame_num
-                    for packet in encoder.encode(raw_frame):
-                        writer.write(bytes(packet))
-                        await writer.drain()
-                    frame_num += 1
+                    writer.write(data)
+                    await writer.drain()
 
             elif self._source == "test-pattern":
                 while self._running:
