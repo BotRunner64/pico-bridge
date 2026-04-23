@@ -2,16 +2,18 @@
 
 The headset's MediaDecoder opens a TCP *server* on a given port.
 This module connects to that server and pushes raw Annex-B H.264 bytestream
-produced by an ffmpeg subprocess.
+produced by PyAV (libav bindings, no external ffmpeg needed).
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-import shutil
 import signal
+import threading
+import time
 from dataclasses import dataclass
+from fractions import Fraction
 from typing import Any
 
 log = logging.getLogger("pico_bridge.video")
@@ -39,65 +41,61 @@ class CameraRequest:
         )
 
 
-def _find_ffmpeg() -> str:
-    path = shutil.which("ffmpeg")
-    if not path:
-        raise RuntimeError("ffmpeg not found in PATH")
-    return path
+def _open_camera(device: str | None, width: int, height: int, fps: int):
+    """Open a camera device via PyAV and return the container."""
+    import av
+    import sys
 
-
-def _build_ffmpeg_args(
-    req: CameraRequest,
-    *,
-    source: str = "test-pattern",
-    camera_device: str | None = None,
-) -> list[str]:
-    """Build ffmpeg command line for H.264 Annex-B output to stdout."""
-    ffmpeg = _find_ffmpeg()
-    args = [ffmpeg, "-hide_banner", "-loglevel", "warning"]
-
-    if source == "test-pattern":
-        args += [
-            "-f", "lavfi",
-            "-i", f"testsrc=size={req.width}x{req.height}:rate={req.fps}",
-        ]
-    elif source == "camera":
-        import sys
-        if sys.platform == "linux":
-            dev = camera_device or "/dev/video0"
-            args += ["-f", "v4l2", "-framerate", str(req.fps),
-                     "-video_size", f"{req.width}x{req.height}", "-i", dev]
-        elif sys.platform == "darwin":
-            dev = camera_device or "0"
-            args += ["-f", "avfoundation", "-framerate", str(req.fps),
-                     "-video_size", f"{req.width}x{req.height}", "-i", f"{dev}:none"]
-        elif sys.platform == "win32":
-            dev = camera_device or "video=Integrated Camera"
-            args += ["-f", "dshow", "-framerate", str(req.fps),
-                     "-video_size", f"{req.width}x{req.height}", "-i", dev]
-        else:
-            raise RuntimeError(f"Unsupported platform: {sys.platform}")
+    if sys.platform == "linux":
+        dev = device or "/dev/video0"
+        options = {"framerate": str(fps), "video_size": f"{width}x{height}"}
+        return av.open(dev, format="v4l2", options=options)
+    elif sys.platform == "darwin":
+        dev = device or "0"
+        options = {"framerate": str(fps), "video_size": f"{width}x{height}"}
+        return av.open(f"{dev}:none", format="avfoundation", options=options)
+    elif sys.platform == "win32":
+        dev = device or "video=Integrated Camera"
+        options = {"framerate": str(fps), "video_size": f"{width}x{height}"}
+        return av.open(dev, format="dshow", options=options)
     else:
-        raise ValueError(f"Unknown source: {source}")
+        raise RuntimeError(f"Unsupported platform: {sys.platform}")
 
-    # H.264 Annex-B output to stdout
-    args += [
-        "-c:v", "libx264",
-        "-preset", "ultrafast",
-        "-tune", "zerolatency",
-        "-b:v", str(req.bitrate),
-        "-maxrate", str(req.bitrate),
-        "-bufsize", str(req.bitrate // 2),
-        "-g", str(req.fps),  # keyframe every second
-        "-f", "h264",        # raw Annex-B
-        "-an",               # no audio
-        "pipe:1",
-    ]
-    return args
+
+def _make_test_frame(width: int, height: int, frame_num: int):
+    """Generate a test pattern frame using PyAV."""
+    import av
+    frame = av.VideoFrame(width, height, "yuv420p")
+    # Fill with a shifting color pattern
+    for i, plane in enumerate(frame.planes):
+        data = bytes([(frame_num * 3 + i + y) & 0xFF for y in range(plane.buffer_size)])
+        plane.update(data)
+    frame.pts = frame_num
+    return frame
+
+
+def _create_encoder(width: int, height: int, fps: int, bitrate: int):
+    """Create an H.264 encoder codec context."""
+    import av
+    codec = av.CodecContext.create("libx264", "w")
+    codec.width = width
+    codec.height = height
+    codec.pix_fmt = "yuv420p"
+    codec.time_base = Fraction(1, fps)
+    codec.framerate = Fraction(fps, 1)
+    codec.bit_rate = bitrate
+    codec.max_b_frames = 0
+    codec.gop_size = fps  # keyframe every second
+    codec.options = {
+        "preset": "ultrafast",
+        "tune": "zerolatency",
+    }
+    codec.open()
+    return codec
 
 
 class VideoSender:
-    """Manages ffmpeg subprocess and TCP connection to headset decoder."""
+    """Manages PyAV encoding and TCP connection to headset decoder."""
 
     def __init__(
         self,
@@ -106,9 +104,9 @@ class VideoSender:
     ):
         self._source = source
         self._camera_device = camera_device
-        self._proc: asyncio.subprocess.Process | None = None
         self._send_task: asyncio.Task[None] | None = None
         self._running = False
+        self._encode_thread: threading.Thread | None = None
 
     @property
     def is_running(self) -> bool:
@@ -123,58 +121,86 @@ class VideoSender:
         log.info("Video: %dx%d @%dfps %dkbps source=%s",
                  req.width, req.height, req.fps, req.bitrate // 1024, self._source)
 
-        args = _build_ffmpeg_args(
-            req, source=self._source, camera_device=self._camera_device,
-        )
-        log.debug("ffmpeg command: %s", " ".join(args))
-
-        self._proc = await asyncio.create_subprocess_exec(
-            *args,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
         self._running = True
         self._send_task = asyncio.create_task(self._stream_loop(req))
 
     async def _stream_loop(self, req: CameraRequest) -> None:
-        """Read from ffmpeg stdout, push to headset TCP server."""
-        assert self._proc is not None and self._proc.stdout is not None
+        """Encode frames and push H.264 packets to headset TCP server."""
+        import av
 
-        reader: asyncio.StreamReader | None = None
         writer: asyncio.StreamWriter | None = None
+        input_container = None
 
         try:
             # Connect to headset's MediaDecoder TCP server
-            reader_unused, writer = await asyncio.wait_for(
+            _, writer = await asyncio.wait_for(
                 asyncio.open_connection(req.ip, req.port),
                 timeout=10.0,
             )
-            reader = reader_unused  # noqa: F841 — we don't read from headset
             log.info("Connected to headset decoder")
 
-            while self._running:
-                chunk = await self._proc.stdout.read(65536)
-                if not chunk:
-                    log.info("ffmpeg stream ended")
-                    break
-                writer.write(chunk)
+            encoder = _create_encoder(req.width, req.height, req.fps, req.bitrate)
+            frame_num = 0
+            frame_interval = 1.0 / req.fps
+
+            if self._source == "camera":
+                input_container = _open_camera(
+                    self._camera_device, req.width, req.height, req.fps,
+                )
+                stream = input_container.streams.video[0]
+
+                for raw_frame in input_container.decode(stream):
+                    if not self._running:
+                        break
+                    # Reformat to encoder's expected format if needed
+                    if raw_frame.format.name != "yuv420p" or \
+                       raw_frame.width != req.width or raw_frame.height != req.height:
+                        raw_frame = raw_frame.reformat(
+                            width=req.width, height=req.height, format="yuv420p",
+                        )
+                    raw_frame.pts = frame_num
+                    for packet in encoder.encode(raw_frame):
+                        writer.write(bytes(packet))
+                        await writer.drain()
+                    frame_num += 1
+
+            elif self._source == "test-pattern":
+                while self._running:
+                    t_start = time.monotonic()
+                    frame = _make_test_frame(req.width, req.height, frame_num)
+                    for packet in encoder.encode(frame):
+                        writer.write(bytes(packet))
+                        await writer.drain()
+                    frame_num += 1
+                    # Pace to target fps
+                    elapsed = time.monotonic() - t_start
+                    if elapsed < frame_interval:
+                        await asyncio.sleep(frame_interval - elapsed)
+            else:
+                raise ValueError(f"Unknown source: {self._source}")
+
+            # Flush encoder
+            for packet in encoder.encode():
+                writer.write(bytes(packet))
                 await writer.drain()
 
         except asyncio.TimeoutError:
-            log.error("Timeout connecting to headset decoder at %s:%d", req.ip, req.port)
+            log.error("Timeout connecting to headset decoder at %s:%d",
+                      req.ip, req.port)
         except (ConnectionRefusedError, OSError) as e:
             log.error("Connection to headset decoder failed: %s", e)
         except (ConnectionResetError, BrokenPipeError):
             log.warning("Headset decoder connection lost")
         finally:
             self._running = False
+            if input_container is not None:
+                input_container.close()
             if writer:
                 writer.close()
                 try:
                     await writer.wait_closed()
                 except Exception:
                     pass
-            await self._kill_ffmpeg()
 
     async def stop(self) -> None:
         """Stop streaming and clean up."""
@@ -186,25 +212,4 @@ class VideoSender:
             except asyncio.CancelledError:
                 pass
         self._send_task = None
-        await self._kill_ffmpeg()
         log.info("Video sender stopped")
-
-    async def _kill_ffmpeg(self) -> None:
-        if self._proc is None:
-            return
-        if self._proc.returncode is None:
-            try:
-                self._proc.send_signal(signal.SIGTERM)
-                try:
-                    await asyncio.wait_for(self._proc.wait(), timeout=3.0)
-                except asyncio.TimeoutError:
-                    self._proc.kill()
-                    await self._proc.wait()
-            except ProcessLookupError:
-                pass
-        # Drain stderr for diagnostics
-        if self._proc.stderr:
-            err = await self._proc.stderr.read()
-            if err:
-                log.debug("ffmpeg stderr: %s", err.decode(errors="replace").strip())
-        self._proc = None

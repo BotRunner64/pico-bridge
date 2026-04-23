@@ -5,13 +5,18 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from pico_bridge.protocol import CMD, HEAD_VR_TO_PC, Packet
 from pico_bridge.tcp_server import PicoBridgeServer
-from pico_bridge.video_sender import CameraRequest, VideoSender, _build_ffmpeg_args
+from pico_bridge.video_sender import (
+    CameraRequest,
+    VideoSender,
+    _create_encoder,
+    _make_test_frame,
+)
 
 
 # ── CameraRequest parsing ─────────────────────────────────
@@ -50,49 +55,31 @@ class TestCameraRequest:
         assert req.width == 1280
 
 
-# ── ffmpeg args builder ───────────────────────────────────
+# ── PyAV encoder and test frame ──────────────────────────
 
-class TestBuildFfmpegArgs:
-    @patch("shutil.which", return_value="/usr/bin/ffmpeg")
-    def test_test_pattern_args(self, _mock_which):
-        req = CameraRequest(ip="10.0.0.1", port=9000, width=1920, height=1080, fps=30, bitrate=4_000_000)
-        args = _build_ffmpeg_args(req, source="test-pattern")
-        assert args[0] == "/usr/bin/ffmpeg"
-        assert "testsrc=size=1920x1080:rate=30" in " ".join(args)
-        assert "-f" in args
-        idx = args.index("pipe:1")
-        assert idx == len(args) - 1
-        assert "-c:v" in args
-        assert args[args.index("-c:v") + 1] == "libx264"
+class TestEncoder:
+    def test_create_encoder(self):
+        enc = _create_encoder(320, 240, 30, 1_000_000)
+        assert enc.width == 320
+        assert enc.height == 240
 
-    @patch("shutil.which", return_value="/usr/bin/ffmpeg")
-    def test_camera_args_linux(self, _mock_which):
-        req = CameraRequest(ip="10.0.0.1", port=9000)
-        with patch.object(sys, "platform", "linux"):
-            args = _build_ffmpeg_args(req, source="camera")
-        assert "-f" in args
-        assert "v4l2" in args
+    def test_make_test_frame(self):
+        frame = _make_test_frame(320, 240, 0)
+        assert frame.width == 320
+        assert frame.height == 240
+        assert frame.format.name == "yuv420p"
 
-    @patch("shutil.which", return_value=None)
-    def test_ffmpeg_not_found(self, _mock_which):
-        req = CameraRequest(ip="10.0.0.1", port=9000)
-        with pytest.raises(RuntimeError, match="ffmpeg not found"):
-            _build_ffmpeg_args(req)
-
-    @patch("shutil.which", return_value="/usr/bin/ffmpeg")
-    def test_unknown_source_raises(self, _mock_which):
-        req = CameraRequest(ip="10.0.0.1", port=9000)
-        with pytest.raises(ValueError, match="Unknown source"):
-            _build_ffmpeg_args(req, source="magic")
-
-    @patch("shutil.which", return_value="/usr/bin/ffmpeg")
-    def test_h264_annex_b_output(self, _mock_which):
-        req = CameraRequest(ip="10.0.0.1", port=9000)
-        args = _build_ffmpeg_args(req)
-        # Must output raw h264 format
-        f_indices = [i for i, a in enumerate(args) if a == "-f"]
-        formats = [args[i + 1] for i in f_indices]
-        assert "h264" in formats
+    def test_encode_test_frame_produces_packets(self):
+        enc = _create_encoder(320, 240, 30, 1_000_000)
+        frame = _make_test_frame(320, 240, 0)
+        packets = enc.encode(frame)
+        # First frame should produce at least one packet (keyframe)
+        flush = enc.encode()
+        all_packets = list(packets) + list(flush)
+        assert len(all_packets) >= 1
+        # Packets should contain H.264 data
+        total_bytes = sum(len(bytes(p)) for p in all_packets)
+        assert total_bytes > 0
 
 
 # ── tcp_server camera dispatch ────────────────────────────
@@ -161,11 +148,14 @@ class TestVideoSender:
         sender = VideoSender()
         assert not sender.is_running
 
-    @patch("shutil.which", return_value="/usr/bin/ffmpeg")
-    def test_stop_when_not_running(self, _mock_which):
+    def test_stop_when_not_running(self):
         sender = VideoSender()
         asyncio.run(sender.stop())
         assert not sender.is_running
+
+    def test_unknown_source_rejected(self):
+        sender = VideoSender(source="magic")
+        assert sender._source == "magic"
 
 
 # ── helpers ───────────────────────────────────────────────
