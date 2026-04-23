@@ -8,12 +8,14 @@ import logging
 from typing import Any, Callable
 
 from .protocol import CMD, Packet, PacketParser, pack
+from .video_sender import CameraRequest
 
 log = logging.getLogger("pico_bridge.server")
 
 # callback type: async def handler(function_name: str, value: Any) -> None
 FunctionCallback = Callable[[str, Any], Any]
 TrackingCallback = Callable[[dict[str, Any]], Any]
+CameraRequestCallback = Callable[["CameraRequest"], Any]
 
 
 class PicoBridgeServer:
@@ -25,11 +27,15 @@ class PicoBridgeServer:
         port: int = 63901,
         on_tracking: TrackingCallback | None = None,
         on_function: FunctionCallback | None = None,
+        on_camera_request: CameraRequestCallback | None = None,
+        on_camera_stop: Callable[[], Any] | None = None,
     ):
         self.host = host
         self.port = port
         self._on_tracking = on_tracking
         self._on_function = on_function
+        self._on_camera_request = on_camera_request
+        self._on_camera_stop = on_camera_stop
         self._server: asyncio.Server | None = None
         self._writer: asyncio.StreamWriter | None = None
         self._device_sn: str = ""
@@ -173,10 +179,27 @@ class PicoBridgeServer:
                     log.warning("bad tracking payload: %s", e)
                     return
                 self._on_tracking(tracking_data)
+        elif fn_name == "StartReceivePcCamera":
+            self._handle_camera_start(value)
+        elif fn_name == "StopReceivePcCamera":
+            if self._on_camera_stop:
+                self._on_camera_stop()
         else:
             log.info("function: %s", fn_name)
             if self._on_function:
                 self._on_function(fn_name, value)
+
+    def _handle_camera_start(self, value: Any) -> None:
+        try:
+            obj = value if isinstance(value, dict) else json.loads(value)
+            req = CameraRequest.from_json(obj)
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
+            log.warning("bad StartReceivePcCamera payload: %s", e)
+            return
+        log.info("camera request: %s:%d %dx%d @%dfps",
+                 req.ip, req.port, req.width, req.height, req.fps)
+        if self._on_camera_request:
+            self._on_camera_request(req)
 
     @staticmethod
     def _decode_tracking_value(value: Any) -> dict[str, Any]:

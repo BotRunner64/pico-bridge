@@ -11,9 +11,12 @@ from typing import Any
 from .discovery import UdpBroadcaster
 from .tcp_server import PicoBridgeServer
 from .tracking import TrackingFrame
+from .video_sender import CameraRequest, VideoSender
 
 _frame_count = 0
 _viz_push: Any = None  # set to visualiser.push_frame when --viz is active
+_video_sender: VideoSender | None = None
+_event_loop: asyncio.AbstractEventLoop | None = None
 
 
 def _visualiser_enabled(args: argparse.Namespace) -> bool:
@@ -41,9 +44,27 @@ def _on_function(name: str, value: Any) -> None:
     print(f"  fn: {name} = {value}", flush=True)
 
 
+def _on_camera_request(req: CameraRequest) -> None:
+    if _video_sender is None:
+        print("  camera request ignored (video disabled)", flush=True)
+        return
+    if _event_loop is None:
+        return
+    asyncio.run_coroutine_threadsafe(_video_sender.start(req), _event_loop)
+    print(f"  video sender starting -> {req.ip}:{req.port}", flush=True)
+
+
+def _on_camera_stop() -> None:
+    if _video_sender is None or _event_loop is None:
+        return
+    asyncio.run_coroutine_threadsafe(_video_sender.stop(), _event_loop)
+    print("  video sender stopping", flush=True)
+
+
 async def _run(args: argparse.Namespace) -> None:
-    global _viz_push
+    global _viz_push, _video_sender, _event_loop
     viz_enabled = _visualiser_enabled(args)
+    _event_loop = asyncio.get_running_loop()
 
     # Start Rerun visualiser if requested
     if viz_enabled:
@@ -52,6 +73,14 @@ async def _run(args: argparse.Namespace) -> None:
         visualiser.init(spawn=not args.viz_connect, connect=args.viz_connect)
         _viz_push = visualiser.push_frame
         print("Rerun 3D viewer ready")
+
+    # Set up video sender if enabled
+    if args.video != "disabled":
+        _video_sender = VideoSender(
+            source=args.video,
+            camera_device=args.camera_device,
+        )
+        print(f"Video sender ready (source={args.video})")
 
     # Choose tracking callback
     if args.print_tracking:
@@ -66,6 +95,8 @@ async def _run(args: argparse.Namespace) -> None:
         port=args.tcp_port,
         on_tracking=tracking_cb,
         on_function=_on_function,
+        on_camera_request=_on_camera_request,
+        on_camera_stop=_on_camera_stop,
     )
     await server.start()
 
@@ -91,6 +122,10 @@ async def _run(args: argparse.Namespace) -> None:
     except asyncio.CancelledError:
         pass
     finally:
+        if _video_sender is not None:
+            await _video_sender.stop()
+            _video_sender = None
+        _event_loop = None
         await broadcaster.stop()
         await server.stop()
         if viz_enabled:
@@ -115,9 +150,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--video",
-        choices=["disabled"],
+        choices=["disabled", "test-pattern", "camera"],
         default="disabled",
-        help="Video mode (disabled for Phase A)",
+        help="Video mode: disabled, test-pattern (ffmpeg testsrc), or camera (webcam)",
+    )
+    parser.add_argument(
+        "--camera-device",
+        default=None,
+        help="Camera device path/name for --video=camera (e.g. /dev/video0)",
     )
     parser.add_argument(
         "--no-discovery",

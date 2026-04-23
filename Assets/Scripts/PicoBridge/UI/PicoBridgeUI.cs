@@ -20,6 +20,7 @@ namespace PicoBridge.UI
         private string _portInput = "63901";
         private string _statusText = "Disconnected";
         private bool _showUI = true;
+        private bool _cameraPreview;
         private readonly List<DiscoveredServer> _discoveredServers = new List<DiscoveredServer>();
 
         private void Start()
@@ -54,7 +55,15 @@ namespace PicoBridge.UI
             if (_manager.IsConnected)
                 _statusText = $"Connected to {_manager.serverAddress}:{_manager.serverPort}";
             else if (_manager.TcpClient != null)
+            {
                 _statusText = _manager.TcpClient.State.ToString();
+                if (_cameraPreview)
+                {
+                    _cameraPreview = false;
+                    if (_manager.Camera != null)
+                        _manager.Camera.StopPreview();
+                }
+            }
             else
                 _statusText = "Disconnected";
         }
@@ -65,7 +74,7 @@ namespace PicoBridge.UI
 
             float scale = Screen.dpi > 0 ? Screen.dpi / 160f : 1f;
             int w = (int)(400 * scale);
-            int h = (int)(380 * scale);
+            int h = (int)(460 * scale);
             int x = (Screen.width - w) / 2;
             int y = (int)(20 * scale);
 
@@ -124,6 +133,26 @@ namespace PicoBridge.UI
             _manager.sendHands = GUILayout.Toggle(_manager.sendHands, "Hands", style);
             _manager.sendBody = GUILayout.Toggle(_manager.sendBody, "Body", style);
             _manager.sendMotion = GUILayout.Toggle(_manager.sendMotion, "Motion Trackers", style);
+
+            GUILayout.Space(8);
+
+            // Camera preview toggle
+            bool canCamera = _manager.IsConnected && _manager.Camera != null;
+            GUI.enabled = canCamera;
+            bool newCameraPreview = GUILayout.Toggle(_cameraPreview, "Camera Preview", style);
+            GUI.enabled = true;
+
+            if (newCameraPreview != _cameraPreview && canCamera)
+            {
+                _cameraPreview = newCameraPreview;
+                if (_cameraPreview)
+                    _manager.Camera.StartPreview(_manager.TcpClient);
+                else
+                    _manager.Camera.StopPreview();
+            }
+
+            if (_manager.Camera != null && _manager.Camera.IsActive)
+                GUILayout.Label("  Camera: streaming", style);
 
             GUILayout.EndArea();
         }

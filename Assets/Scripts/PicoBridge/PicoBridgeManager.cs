@@ -1,4 +1,5 @@
 using UnityEngine;
+using PicoBridge.Camera;
 using PicoBridge.Network;
 using PicoBridge.Tracking;
 
@@ -29,12 +30,14 @@ namespace PicoBridge
         private PicoTcpClient _tcp;
         private UdpDiscovery _discovery;
         private PicoTrackingCollector _collector;
+        private RemoteCameraWindow _camera;
         private float _trackingInterval;
         private float _trackingTimer;
         private bool _autoConnected;
 
         public PicoTcpClient TcpClient => _tcp;
         public UdpDiscovery Discovery => _discovery;
+        public RemoteCameraWindow Camera => _camera;
         public bool IsConnected => _tcp != null && _tcp.State == SocketState.Working;
 
         private void Awake()
@@ -55,6 +58,9 @@ namespace PicoBridge
             // UDP discovery
             _discovery = gameObject.AddComponent<UdpDiscovery>();
             _discovery.OnServerFound += OnServerDiscovered;
+
+            // Camera preview
+            _camera = gameObject.AddComponent<RemoteCameraWindow>();
 
             #if UNITY_EDITOR
             _collector = null; // Use mock in Editor
