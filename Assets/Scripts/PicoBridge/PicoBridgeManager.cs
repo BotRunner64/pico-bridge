@@ -77,6 +77,7 @@ namespace PicoBridge
 
         private void Start()
         {
+            ConfigurePassthroughRendering();
             StartVideoSeeThroughBootstrap();
 
             if (autoDiscovery)
@@ -170,6 +171,13 @@ namespace PicoBridge
 #endif
         }
 
+        private static void ConfigurePassthroughRendering()
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            PXR_Plugin.Render.UPxr_EnablePremultipliedAlpha(true);
+#endif
+        }
+
         private void StartVideoSeeThroughBootstrap()
         {
 #if UNITY_ANDROID && !UNITY_EDITOR
@@ -187,6 +195,7 @@ namespace PicoBridge
 
             for (int attempt = 0; attempt < maxAttempts; attempt++)
             {
+                ConfigurePassthroughRendering();
                 EnableVideoSeeThrough();
                 yield return new WaitForSeconds(retryDelay);
             }
