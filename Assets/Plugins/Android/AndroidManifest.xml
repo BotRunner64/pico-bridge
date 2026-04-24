@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          xmlns:tools="http://schemas.android.com/tools">
+  <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+  <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+  <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+  <uses-feature android:glEsVersion="0x00030000" />
+  <uses-feature android:name="android.hardware.vulkan.version" android:required="false" />
+  <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+  <uses-feature android:name="android.hardware.touchscreen.multitouch" android:required="false" />
+  <uses-feature android:name="android.hardware.touchscreen.multitouch.distinct" android:required="false" />
+  <application android:enableOnBackInvokedCallback="true"
+               android:extractNativeLibs="true"
+               android:requestLegacyExternalStorage="true">
+    <meta-data android:name="unity.splash-mode" android:value="0" />
+    <meta-data android:name="unity.splash-enable" android:value="True" />
+    <meta-data android:name="unity.launch-fullscreen" android:value="True" />
+    <meta-data android:name="unity.render-outside-safearea" android:value="True" />
+    <meta-data android:name="notch.config" android:value="portrait|landscape" />
+    <meta-data android:name="unity.auto-report-fully-drawn" android:value="true" />
+    <activity android:name="com.unity3d.player.UnityPlayerActivity"
+              android:theme="@style/UnityThemeSelector"
+              android:screenOrientation="landscape"
+              android:launchMode="singleTask"
+              android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize|fontScale|layoutDirection|density"
+              android:resizeableActivity="false"
+              android:hardwareAccelerated="false"
+              android:exported="true">
+      <intent-filter>
+        <category android:name="android.intent.category.LAUNCHER" />
+        <action android:name="android.intent.action.MAIN" />
+      </intent-filter>
+      <meta-data android:name="unityplayer.UnityActivity" android:value="true" />
+      <meta-data android:name="notch_support" android:value="true" />
+    </activity>
+    <meta-data android:name="pvr.app.type" android:value="vr" />
+    <meta-data android:name="pxr.sdk.version_code" android:value="5150" />
+    <meta-data android:name="use.pxr.sdk" android:value="1" />
+    <meta-data android:name="pvr.sdk.version" android:value="XR Platform_3.4.0" />
+    <meta-data android:name="enable_cpt" android:value="0" />
+    <meta-data android:name="Enable_AdaptiveHandModel" android:value="0" />
+    <meta-data android:name="Hand_Tracking_HighFrequency" android:value="0" />
+    <meta-data android:name="rendering_mode" android:value="0" />
+    <meta-data android:name="display_rate" android:value="0" />
+    <meta-data android:name="color_Space" android:value="1" />
+    <meta-data android:name="MRCsupport" android:value="1" />
+    <meta-data android:name="pvr.LateLatching" android:value="0" />
+    <meta-data android:name="pvr.LateLatchingDebug" android:value="0" />
+    <meta-data android:name="pvr.app.splash" android:value="0" />
+    <meta-data android:name="PICO.swift.feature" android:value="1" />
+    <meta-data android:name="adaptive_resolution" android:value="0" />
+    <meta-data android:name="enable_mr_safeguard" android:value="0" />
+    <meta-data android:name="enable_vst" android:value="1" />
+    <meta-data android:name="enable_anchor" android:value="0" />
+    <meta-data android:name="mr_map_mgr_auto_start" android:value="0" />
+    <meta-data android:name="enable_spatial_anchor" android:value="0" />
+    <meta-data android:name="enable_cloud_anchor" android:value="0" />
+    <meta-data android:name="enable_mesh_anchor" android:value="0" />
+    <meta-data android:name="enable_scene_anchor" android:value="0" />
+    <meta-data android:name="enable_plane_detection" android:value="0" />
+    <meta-data android:name="pvr.SuperResolution" android:value="0" />
+    <meta-data android:name="pvr.NormalSharpening" android:value="0" />
+    <meta-data android:name="pvr.QualitySharpening" android:value="0" />
+    <meta-data android:name="pvr.FixedFoveatedSharpening" android:value="0" />
+    <meta-data android:name="pvr.SelfAdaptiveSharpening" android:value="0" />
+    <meta-data android:name="pvr.app.secure_mr" android:value="0" />
+    <meta-data android:name="controller" android:value="1" />
+    <meta-data android:name="handtracking" android:value="1" />
+  </application>
+  <uses-permission android:name="android.permission.WRITE_SETTINGS" />
+  <uses-permission android:name="com.picovr.permission.HAND_TRACKING" />
+</manifest>
