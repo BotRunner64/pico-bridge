@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!114 &-8177557844830055711
+--- !u!114 &-1845097444050058725
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d236b7d11115f2143951f1e14045df39, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_LoaderManagerInstance: {fileID: 5678313313526761920}
+  m_LoaderManagerInstance: {fileID: 767183419262243257}
   m_InitManagerOnStart: 1
 --- !u!114 &11400000
 MonoBehaviour:
@@ -28,8 +28,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   Keys: 07000000
   Values:
-  - {fileID: -8177557844830055711}
---- !u!114 &5678313313526761920
+  - {fileID: -1845097444050058725}
+--- !u!114 &767183419262243257
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -45,4 +45,4 @@ MonoBehaviour:
   m_AutomaticLoading: 0
   m_AutomaticRunning: 0
   m_Loaders:
-  - {fileID: 11400000, guid: 6523a5c5d3f826e5eabbd400c22fa0f2, type: 2}
+  - {fileID: 11400000, guid: f9dee27559274f278ad7f7a6c55706ff, type: 2}

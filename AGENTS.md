@@ -2,60 +2,37 @@
 
 ## Project Overview
 
-- This repository is a Unity project for PICO/VR development.
+- This repository is the active Built-in 3D mainline for the PICO bridge project.
 - Unity editor version is pinned by `ProjectSettings/ProjectVersion.txt`.
-- `Packages/PICO-Unity-Integration-SDK` is a git submodule and should be used as an embedded Unity Package Manager package, not copied into `Assets/`.
+- The primary product goal is to keep PICO passthrough working while continuing UI, networking, tracking, and `pc_receiver` development.
+- A legacy URP project exists outside this repo as reference only; do not treat it as the main development target.
 
-## PICO Documentation
+## Packages and SDKs
 
-- Use the official PICO Unity documentation as the primary reference for SDK setup, APIs, and platform-specific behavior:
-  - `https://developer.picoxr.com/zh/document/unity/`
-- When implementing PICO SDK features or looking up related interfaces, check the official PICO Unity documentation first.
-- Prefer documented PICO APIs and Unity Package Manager integration patterns over inferred or copied examples.
+- `Packages/PICO-Unity-Integration-SDK` is the embedded PICO SDK package and should remain under `Packages/`.
+- Prefer documented PICO SDK APIs over copied or inferred behavior.
+- Do not reintroduce `Unity-Live-Preview-Plugin` or URP-only package/config dependencies unless explicitly requested.
 
-## Local Plugins
+## Project Structure
 
-- This repository also contains a local Unity package plugin at `Packages/Unity-Live-Preview-Plugin/`.
-- The package name is `com.unity.pico.livepreview`; prefer keeping it as an embedded Unity Package Manager package under `Packages/` instead of copying files into `Assets/`.
-- For Live Preview related APIs and integration points, inspect this plugin first:
-  - `Packages/Unity-Live-Preview-Plugin/package.json`
-  - `Packages/Unity-Live-Preview-Plugin/Runtime/Scripts/`
-  - `Packages/Unity-Live-Preview-Plugin/Runtime/UnitySubsystemsManifest.json`
-- The main runtime namespace exposed by this plugin is `Unity.XR.PICO.LivePreview`.
-- When looking for Live Preview loaders, settings, or subsystem entry points, start from:
-  - `Packages/Unity-Live-Preview-Plugin/Runtime/Scripts/PXR_PTLoader.cs`
-  - `Packages/Unity-Live-Preview-Plugin/Runtime/Scripts/PXR_PTSettings.cs`
-
-## Submodules
-
-- Initialize SDK submodules before working on PICO integration:
-  - `git submodule sync --recursive`
-  - `git submodule update --init --recursive`
-- The PICO SDK submodule lives at `Packages/PICO-Unity-Integration-SDK`.
-- Do not vendor or duplicate the PICO SDK files under `Assets/`.
-
-## Unity Package Guidance
-
-- Prefer editing `Packages/manifest.json` for package dependencies.
-- Embedded packages stored directly under `Packages/` are preferred for local plugins in this repository.
-- `Packages/PICO-Unity-Integration-SDK` exposes the package `com.unity.xr.picoxr`.
-- `Packages/Unity-Live-Preview-Plugin` exposes the package `com.unity.pico.livepreview`.
-- Keep `Packages/packages-lock.json` in sync with Unity Package Manager changes.
-
-## Generated Files
-
-- Do not commit Unity generated folders such as `Library/`, `Temp/`, `Obj/`, `Logs/`, `Build/`, `Builds/`, or `UserSettings/`.
-- Do not treat generated project files such as `*.csproj`, `*.sln`, or IDE metadata as source.
+- Unity runtime bridge code lives under `Assets/Scripts/PicoBridge/`.
+- Android native plugin assets live under `Assets/Plugins/Android/`.
+- The Python receiver lives under `pc_receiver/`.
 
 ## Coding Conventions
 
-- Keep runtime scripts under `Assets/` and editor-only scripts under an `Editor/` folder.
-- Prefer small, focused MonoBehaviours and ScriptableObjects.
-- Avoid adding new packages unless they are required for the requested feature.
+- Keep runtime scripts under `Assets/` and editor-only scripts inside an `Editor/` folder.
 - Preserve Unity `.meta` files when adding, moving, or deleting assets.
+- Prefer small, focused MonoBehaviours and utility classes.
+- Keep diffs small and avoid unrelated scene churn.
 
-## Verification
+## Validation
 
-- For code changes, open the project with the pinned Unity version and check the Console for compile errors.
-- For package or XR changes, verify Unity Package Manager resolves successfully.
-- For PICO features, validate Android XR settings and test on device when possible.
+- For Python receiver changes, run `pytest tests -q` from `pc_receiver/`.
+- For Unity changes, open the project with the pinned editor and check the Console for compile/import errors.
+- For XR changes, verify Android settings, package resolution, and passthrough behavior on device when possible.
+
+## Generated Files
+
+- Do not commit `Library/`, `Temp/`, `Obj/`, `Logs/`, `Build/`, `Builds/`, or `UserSettings/`.
+- Do not treat generated `*.csproj` / `*.sln` files as source.

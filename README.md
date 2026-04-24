@@ -1,129 +1,74 @@
 # PICO Bridge
 
-PICO 头显与 PC 之间的 tracking 数据桥接工具。头显端采集 6DoF 追踪数据（头部、手柄、手势、身体），通过 TCP 实时发送到 PC 端接收器子工程。
+Built-in 渲染管线下的 PICO MR / tracking bridge 主线工程。
 
-## 环境要求
+## 当前主线
 
-- Unity `2022.3.62f3`
-- Python `3.10+`
-- 目标平台：Android / PICO 头显
-- 渲染管线：URP
+- Unity: `2022.3.62f3`
+- Render Pipeline: Built-in 3D
+- XR SDK: `Packages/PICO-Unity-Integration-SDK`
+- 主要目标: 保持彩透可用，并继续开发 UI、通讯与 `pc_receiver`
+
+旧的 URP 工程已从主线迁出，作为仓库外参考目录保留，不再继续承载新功能开发。
+
+## 仓库结构
+
+```text
+Assets/Scripts/PicoBridge/
+├── PicoBridgeManager.cs      # 桥接主入口
+├── Network/                  # TCP/UDP 协议与发现
+├── Tracking/                 # 头显 / 手柄 / 手部 tracking 采集
+├── UI/                       # 头显内调试 UI
+├── Camera/                   # 预留的视频预览链路
+└── Editor/                   # 自动搭场景与工程校验
+
+pc_receiver/
+├── bridge.py                 # 本地开发入口
+├── src/pico_bridge/          # Python 接收端实现
+└── tests/                    # 单元测试
+```
 
 ## 快速开始
 
-### 1. PC 端启动 receiver
+### Unity 端
+
+1. 用 Unity `2022.3.62f3` 打开本项目
+2. 确认 Android 平台启用 PICO Loader
+3. 菜单 `PicoBridge > Setup Scene`，或直接进入 Play 让脚本自动注入 `PicoBridge` 根对象
+4. 在头显内 UI 中连接 PC receiver
+
+### PC 端
 
 ```bash
 cd pc_receiver
 python bridge.py -v
 ```
 
-启动后会：
-- 监听 TCP 63901 等待头显连接
-- UDP 广播自身 IP 到端口 29888（头显自动发现）
+默认行为：
 
-### 2. Unity Editor 测试（无需头显）
+- TCP 监听 `63901`
+- UDP 广播发现端口 `29888`
+- 打印 tracking 数据
 
-1. Unity 打开项目
-2. 菜单 `PicoBridge > Setup Scene` 自动创建 GameObject
-3. 确保 PC 端 `pc_receiver/bridge.py` 已运行
-4. 点 Play
+## 验证
 
-Editor 模式下会发送模拟 tracking 数据，可以验证 TCP 连接和协议解析。
-
-### 3. 头显部署
-
-1. `PicoBridge > Validate Project Settings` 检查配置
-2. `File > Build Settings > Android > Build And Run`
-3. 头显启动后自动发现 PC server 并连接
-4. PC 终端可看到实时 tracking 数据流
-
-## 目录结构
-
-```
-Assets/Scripts/PicoBridge/
-├── PicoBridgeManager.cs          # 主控：TCP + UDP 发现 + tracking 采集
-├── Network/
-│   ├── ByteBuffer.cs             # TCP 流缓冲区
-│   ├── NetCMD.cs                 # 协议常量
-│   ├── NetPacket.cs              # 解析后的包结构
-│   ├── PackageHandle.cs          # 二进制协议编解码
-│   ├── PicoTcpClient.cs          # TCP 客户端（自动重连、心跳）
-│   └── UdpDiscovery.cs           # UDP 广播监听，自动发现 server
-├── Tracking/
-│   ├── PicoTrackingCollector.cs   # PXR 原生 API 采集 tracking 数据
-│   └── MockTrackingData.cs        # Editor 模式模拟数据
-├── UI/
-│   └── PicoBridgeUI.cs            # IMGUI 连接面板
-└── Editor/
-    └── PicoBridgeSceneSetup.cs    # 菜单工具：自动搭建 scene
-
-pc_receiver/
-├── bridge.py                      # CLI 入口包装器
-├── pyproject.toml                 # Python 包定义
-├── src/pico_bridge/
-│   ├── cli.py                     # CLI 入口
-│   ├── protocol.py                # 二进制协议编解码
-│   ├── tcp_server.py              # asyncio TCP server
-│   ├── discovery.py               # UDP 广播
-│   └── tracking.py                # tracking 数据解析
-└── tests/
-    └── test_protocol.py           # 协议单元测试
-```
-
-## 协议格式
-
-```
-[HEAD:1][CMD:1][LEN:4 LE][DATA:N][TIMESTAMP:8 LE][END:1]
-```
-
-| 方向 | HEAD | END |
-|------|------|-----|
-| VR → PC | `0x3F` | `0xA5` |
-| PC → VR | `0xCF` | `0xA5` |
-
-主要命令：
-
-| CMD | 值 | 说明 |
-|-----|------|------|
-| CONNECT | `0x19` | 连接握手，payload 为 `deviceSN\|-1` |
-| SEND_VERSION | `0x6C` | 版本信息 |
-| TO_CONTROLLER_FUNCTION | `0x6D` | VR→PC 功能消息（含 Tracking） |
-| CLIENT_HEARTBEAT | `0x23` | 心跳（10s 间隔） |
-| FROM_CONTROLLER_COMMON_FUNCTION | `0x5F` | PC→VR 功能消息 |
-| TCPIP | `0x7E` | UDP 发现广播 |
-
-## PC Receiver 参数
-
-```
-python bridge.py [OPTIONS]
-
---tcp-port          TCP 监听端口（默认 63901）
---no-print-tracking 不打印 tracking 帧
---advertise-ip      指定 UDP 广播的 IP（默认自动检测）
---no-discovery      禁用 UDP 广播
--v, --verbose       详细日志
-```
-
-## 运行测试
+### Python
 
 ```bash
 cd pc_receiver
-python -m pytest tests/ -v
+pytest tests -q
 ```
 
-## 开发配置
+### Unity
 
-项目配置已通过代码设置完成：
+- 打开项目后确认 Console 无编译错误
+- Play Mode 下确认可自动搭建 `PicoBridge` 对象
+- 连接 PC receiver 后确认 tracking 持续到达
+- Android 真机确认彩透仍可用
 
-- `Packages/manifest.json`：声明了 PICO SDK 和 Live Preview embedded package
-- `Assets/Resources/PXR_ProjectSetting.asset`：已开启 handTracking、bodyTracking、videoSeeThrough
-- `ProjectSettings/ProjectSettings.asset`：applicationIdentifier 为 `com.picobridge.app`，ForceInternetPermission 已开启
-- XR Plug-in Management：Android 平台已选择 PICO Loader
+## 项目约定
 
-## 开发约定
-
-1. 运行时代码放在 `Assets/Scripts/PicoBridge/` 下
-2. 编辑器代码放在 `Assets/Scripts/PicoBridge/Editor/` 下
-3. 新增文件保留 `.meta` 文件
-4. 不提交 `Library/`、`Temp/`、`Obj/`、`Logs/`、`Build/`、`UserSettings/`
+- 所有新功能都在当前 Built-in 主线继续开发
+- 不再恢复 URP / Live Preview 相关依赖到主线
+- 运行时代码放在 `Assets/`，编辑器代码放在 `Editor/`
+- 不提交 Unity 生成目录：`Library/`、`Temp/`、`Logs/`、`Build/`、`UserSettings/`

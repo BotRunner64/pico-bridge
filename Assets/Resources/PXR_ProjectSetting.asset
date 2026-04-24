@@ -47,7 +47,7 @@ MonoBehaviour:
   mrSafeguard: 0
   enableRecommendMSAA: 0
   recommendSubsamping: 0
-  recommendMSAA: 0
+  recommendMSAA: 1
   validationFFREnabled: 0
   validationETFREnabled: 0
   portalInited: 1

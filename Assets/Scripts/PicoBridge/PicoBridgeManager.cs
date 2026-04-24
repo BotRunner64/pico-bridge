@@ -2,6 +2,8 @@ using UnityEngine;
 using PicoBridge.Camera;
 using PicoBridge.Network;
 using PicoBridge.Tracking;
+using Unity.XR.PXR;
+using System.Collections;
 
 namespace PicoBridge
 {
@@ -34,6 +36,9 @@ namespace PicoBridge
         private float _trackingInterval;
         private float _trackingTimer;
         private bool _autoConnected;
+#if UNITY_ANDROID && !UNITY_EDITOR
+        private Coroutine _videoSeeThroughCoroutine;
+#endif
 
         public PicoTcpClient TcpClient => _tcp;
         public UdpDiscovery Discovery => _discovery;
@@ -72,12 +77,34 @@ namespace PicoBridge
 
         private void Start()
         {
+            StartVideoSeeThroughBootstrap();
+
             if (autoDiscovery)
                 _discovery.StartListening();
 
             // Don't auto-connect to hardcoded IP if discovery is on
             if (!autoDiscovery)
                 _tcp.Connect();
+        }
+
+        private void OnEnable()
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            PXR_Plugin.System.SessionStateChanged += OnSessionStateChanged;
+#endif
+        }
+
+        private void OnDisable()
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            PXR_Plugin.System.SessionStateChanged -= OnSessionStateChanged;
+#endif
+        }
+
+        private void OnApplicationPause(bool pauseStatus)
+        {
+            if (!pauseStatus)
+                StartVideoSeeThroughBootstrap();
         }
 
         private void Update()
@@ -134,6 +161,52 @@ namespace PicoBridge
                 _tcp.autoReconnect = true;
                 _tcp.Connect();
             }
+        }
+
+        private static void EnableVideoSeeThrough()
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            PXR_Manager.EnableVideoSeeThrough = true;
+#endif
+        }
+
+        private void StartVideoSeeThroughBootstrap()
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            if (_videoSeeThroughCoroutine != null)
+                StopCoroutine(_videoSeeThroughCoroutine);
+
+            _videoSeeThroughCoroutine = StartCoroutine(EnableVideoSeeThroughWithRetry());
+#endif
+        }
+
+        private IEnumerator EnableVideoSeeThroughWithRetry()
+        {
+            const int maxAttempts = 12;
+            const float retryDelay = 0.5f;
+
+            for (int attempt = 0; attempt < maxAttempts; attempt++)
+            {
+                EnableVideoSeeThrough();
+                yield return new WaitForSeconds(retryDelay);
+            }
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+            _videoSeeThroughCoroutine = null;
+#endif
+        }
+
+        private void OnSessionStateChanged(XrSessionState state)
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            if (state == XrSessionState.Ready ||
+                state == XrSessionState.Synchronized ||
+                state == XrSessionState.Visible ||
+                state == XrSessionState.Focused)
+            {
+                StartVideoSeeThroughBootstrap();
+            }
+#endif
         }
     }
 }
