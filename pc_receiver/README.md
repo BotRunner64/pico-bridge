@@ -42,3 +42,20 @@ pc_receiver/
 cd pc_receiver
 python -m pytest tests -v
 ```
+## WebRTC 视频预览
+
+第一版视频预览使用 WebRTC 传输 `test-pattern` 到 PICO，tracking/control 仍走现有 TCP 协议。
+
+```bash
+cd pc_receiver
+pip install -e .
+python bridge.py --video test-pattern
+```
+
+真实摄像头使用 `camera` 源，Linux 默认读取 `/dev/video0`，也可以手动指定设备：
+
+```bash
+python bridge.py --video camera --camera-device /dev/video0
+```
+
+

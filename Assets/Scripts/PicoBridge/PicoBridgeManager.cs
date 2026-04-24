@@ -32,7 +32,7 @@ namespace PicoBridge
         private PicoTcpClient _tcp;
         private UdpDiscovery _discovery;
         private PicoTrackingCollector _collector;
-        private RemoteCameraWindow _camera;
+        private WebRtcCameraReceiver _webRtcCamera;
         private float _trackingInterval;
         private float _trackingTimer;
         private bool _autoConnected;
@@ -42,7 +42,7 @@ namespace PicoBridge
 
         public PicoTcpClient TcpClient => _tcp;
         public UdpDiscovery Discovery => _discovery;
-        public RemoteCameraWindow Camera => _camera;
+        public WebRtcCameraReceiver WebRtcCamera => _webRtcCamera;
         public bool IsConnected => _tcp != null && _tcp.State == SocketState.Working;
 
         private void Awake()
@@ -65,7 +65,7 @@ namespace PicoBridge
             _discovery.OnServerFound += OnServerDiscovered;
 
             // Camera preview
-            _camera = gameObject.AddComponent<RemoteCameraWindow>();
+            _webRtcCamera = gameObject.AddComponent<WebRtcCameraReceiver>();
 
             #if UNITY_EDITOR
             _collector = null; // Use mock in Editor
@@ -80,12 +80,18 @@ namespace PicoBridge
             ConfigurePassthroughRendering();
             StartVideoSeeThroughBootstrap();
 
+#if UNITY_EDITOR
+            // Keep Editor Play from auto-claiming the single PC receiver while a headset is testing.
+            if (!autoDiscovery)
+                _tcp.Connect();
+#else
             if (autoDiscovery)
                 _discovery.StartListening();
 
             // Don't auto-connect to hardcoded IP if discovery is on
             if (!autoDiscovery)
                 _tcp.Connect();
+#endif
         }
 
         private void OnEnable()
@@ -145,6 +151,8 @@ namespace PicoBridge
         private void OnFunction(string functionName, string json)
         {
             Debug.Log($"[PicoBridge] Function: {functionName}");
+            if (functionName == "WebRtcOffer" || functionName == "WebRtcIceCandidate")
+                _webRtcCamera?.HandleFunction(functionName, json);
         }
 
         /// <summary>

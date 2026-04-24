@@ -11,11 +11,12 @@ from typing import Any
 from .discovery import UdpBroadcaster
 from .tcp_server import PicoBridgeServer
 from .tracking import TrackingFrame
-from .video_sender import CameraRequest, VideoSender
+from .camera_request import CameraRequest
+from .webrtc_sender import WebRtcVideoSender
 
 _frame_count = 0
 _viz_push: Any = None  # set to visualiser.push_frame when --viz is active
-_video_sender: VideoSender | None = None
+_webrtc_sender: WebRtcVideoSender | None = None
 _event_loop: asyncio.AbstractEventLoop | None = None
 
 
@@ -41,28 +42,36 @@ def _on_tracking_silent(data: dict[str, Any]) -> None:
 
 
 def _on_function(name: str, value: Any) -> None:
+    if _event_loop is not None and _webrtc_sender is not None:
+        if name == "WebRtcAnswer":
+            asyncio.run_coroutine_threadsafe(_webrtc_sender.handle_answer(value), _event_loop)
+            return
+        if name == "WebRtcIceCandidate":
+            asyncio.run_coroutine_threadsafe(_webrtc_sender.handle_ice_candidate(value), _event_loop)
+            return
     print(f"  fn: {name} = {value}", flush=True)
 
 
 def _on_camera_request(req: CameraRequest) -> None:
-    if _video_sender is None:
-        print("  camera request ignored (video disabled)", flush=True)
-        return
     if _event_loop is None:
         return
-    asyncio.run_coroutine_threadsafe(_video_sender.start(req), _event_loop)
-    print(f"  video sender starting -> {req.ip}:{req.port}", flush=True)
+    if _webrtc_sender is None:
+        print("  WebRTC camera request ignored (video disabled)", flush=True)
+        return
+    asyncio.run_coroutine_threadsafe(_webrtc_sender.start(req), _event_loop)
+    print(f"  WebRTC video sender starting ({req.width}x{req.height} @{req.fps}fps)", flush=True)
 
 
 def _on_camera_stop() -> None:
-    if _video_sender is None or _event_loop is None:
+    if _event_loop is None:
         return
-    asyncio.run_coroutine_threadsafe(_video_sender.stop(), _event_loop)
+    if _webrtc_sender is not None:
+        asyncio.run_coroutine_threadsafe(_webrtc_sender.stop(), _event_loop)
     print("  video sender stopping", flush=True)
 
 
 async def _run(args: argparse.Namespace) -> None:
-    global _viz_push, _video_sender, _event_loop
+    global _viz_push, _webrtc_sender, _event_loop
     viz_enabled = _visualiser_enabled(args)
     _event_loop = asyncio.get_running_loop()
 
@@ -74,14 +83,6 @@ async def _run(args: argparse.Namespace) -> None:
         _viz_push = visualiser.push_frame
         print("Rerun 3D viewer ready")
 
-    # Set up video sender if enabled
-    if args.video != "disabled":
-        _video_sender = VideoSender(
-            source=args.video,
-            camera_device=args.camera_device,
-        )
-        print(f"Video sender ready (source={args.video})")
-
     # Choose tracking callback
     if args.print_tracking:
         tracking_cb = _on_tracking
@@ -89,6 +90,9 @@ async def _run(args: argparse.Namespace) -> None:
         tracking_cb = _on_tracking_silent
     else:
         tracking_cb = None
+
+    async def server_send_function_later(name: str, value: Any) -> None:
+        await server.send_function(name, value)
 
     server = PicoBridgeServer(
         host="0.0.0.0",
@@ -98,6 +102,11 @@ async def _run(args: argparse.Namespace) -> None:
         on_camera_request=_on_camera_request,
         on_camera_stop=_on_camera_stop,
     )
+    # Set up video sender after server exists so WebRTC signaling can reuse it.
+    if args.video != "disabled":
+        _webrtc_sender = WebRtcVideoSender(server_send_function_later, source=args.video, camera_device=args.camera_device)
+        print(f"WebRTC video sender ready (source={args.video})")
+
     await server.start()
 
     broadcaster = UdpBroadcaster(
@@ -122,9 +131,9 @@ async def _run(args: argparse.Namespace) -> None:
     except asyncio.CancelledError:
         pass
     finally:
-        if _video_sender is not None:
-            await _video_sender.stop()
-            _video_sender = None
+        if _webrtc_sender is not None:
+            await _webrtc_sender.stop()
+            _webrtc_sender = None
         _event_loop = None
         await broadcaster.stop()
         await server.stop()

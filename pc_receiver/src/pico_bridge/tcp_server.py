@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import ipaddress
 import logging
 from typing import Any, Callable
 
 from .protocol import CMD, Packet, PacketParser, pack
-from .video_sender import CameraRequest
+from .camera_request import CameraRequest
 
 log = logging.getLogger("pico_bridge.server")
 
@@ -16,6 +17,27 @@ log = logging.getLogger("pico_bridge.server")
 FunctionCallback = Callable[[str, Any], Any]
 TrackingCallback = Callable[[dict[str, Any]], Any]
 CameraRequestCallback = Callable[["CameraRequest"], Any]
+
+
+def _peer_ip(writer: asyncio.StreamWriter) -> str | None:
+    peer = writer.get_extra_info("peername")
+    if isinstance(peer, tuple) and peer:
+        return str(peer[0])
+    return None
+
+
+def _is_loopback_or_local_peer(writer: asyncio.StreamWriter) -> bool:
+    peer_ip = _peer_ip(writer)
+    sock = writer.get_extra_info("sockname")
+    sock_ip = str(sock[0]) if isinstance(sock, tuple) and sock else None
+    if not peer_ip:
+        return False
+    try:
+        if ipaddress.ip_address(peer_ip).is_loopback:
+            return True
+    except ValueError:
+        return False
+    return sock_ip is not None and peer_ip == sock_ip
 
 
 class PicoBridgeServer:
@@ -29,6 +51,7 @@ class PicoBridgeServer:
         on_function: FunctionCallback | None = None,
         on_camera_request: CameraRequestCallback | None = None,
         on_camera_stop: Callable[[], Any] | None = None,
+        allow_local_clients: bool = False,
     ):
         self.host = host
         self.port = port
@@ -36,6 +59,7 @@ class PicoBridgeServer:
         self._on_function = on_function
         self._on_camera_request = on_camera_request
         self._on_camera_stop = on_camera_stop
+        self._allow_local_clients = allow_local_clients
         self._server: asyncio.Server | None = None
         self._writer: asyncio.StreamWriter | None = None
         self._device_sn: str = ""
@@ -87,7 +111,11 @@ class PicoBridgeServer:
         addr = writer.get_extra_info("peername")
         async with self._client_lock:
             if self._writer is not None and not self._writer.is_closing():
-                log.info("replacing stale connection with new client: %s", addr)
+                old_addr = self._writer.get_extra_info("peername")
+                if _is_loopback_or_local_peer(self._writer) and not _is_loopback_or_local_peer(writer):
+                    log.info("replacing local/editor connection %s with headset client: %s", old_addr, addr)
+                else:
+                    log.info("replacing stale connection %s with new client: %s", old_addr, addr)
                 try:
                     self._writer.close()
                 except Exception:
@@ -180,7 +208,7 @@ class PicoBridgeServer:
                     return
                 self._on_tracking(tracking_data)
         elif fn_name == "StartReceivePcCamera":
-            self._handle_camera_start(value)
+            self._handle_camera_start(value, writer)
         elif fn_name == "StopReceivePcCamera":
             if self._on_camera_stop:
                 self._on_camera_stop()
@@ -189,15 +217,21 @@ class PicoBridgeServer:
             if self._on_function:
                 self._on_function(fn_name, value)
 
-    def _handle_camera_start(self, value: Any) -> None:
+    def _handle_camera_start(self, value: Any, writer: asyncio.StreamWriter | None = None) -> None:
         try:
             obj = value if isinstance(value, dict) else json.loads(value)
             req = CameraRequest.from_json(obj)
         except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
             log.warning("bad StartReceivePcCamera payload: %s", e)
             return
-        log.info("camera request: %s:%d %dx%d @%dfps",
-                 req.ip, req.port, req.width, req.height, req.fps)
+        peer_ip = _peer_ip(writer) if writer is not None else None
+        if peer_ip and req.ip in ("127.0.0.1", "0.0.0.0", "localhost"):
+            log.info("camera request loopback IP overridden by TCP peer: %s -> %s", req.ip, peer_ip)
+            req.ip = peer_ip
+        elif peer_ip and req.ip != peer_ip:
+            log.info("camera request keeps advertised decoder IP %s (control peer=%s)", req.ip, peer_ip)
+        log.info("camera request: %s:%d %dx%d @%dfps codec=%s",
+                 req.ip, req.port, req.width, req.height, req.fps, req.codec)
         if self._on_camera_request:
             self._on_camera_request(req)
 
