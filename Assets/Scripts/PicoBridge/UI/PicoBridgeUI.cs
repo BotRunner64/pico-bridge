@@ -10,7 +10,6 @@ using PicoBridge.Network;
 namespace PicoBridge.UI
 {
     /// <summary>
-    /// Editor uses IMGUI for convenience.
     /// Device builds use a world-space XR Canvas per XRI/PICO guidance.
     /// </summary>
     public class PicoBridgeUI : MonoBehaviour
@@ -35,7 +34,6 @@ namespace PicoBridge.UI
         private string _ipInput = "192.168.1.100";
         private string _portInput = "63901";
         private string _statusText = "Disconnected";
-        private bool _showUI = true;
         private bool _cameraPreview;
         private bool _collapsed;
         private bool _discoveredServersDirty;
@@ -118,96 +116,6 @@ namespace PicoBridge.UI
 
             if (!Application.isEditor)
                 SyncWorldSpaceUi();
-        }
-
-        private void OnGUI()
-        {
-            if (!Application.isEditor) return;
-            if (!_showUI || _manager == null) return;
-
-            float scale = Screen.dpi > 0 ? Screen.dpi / 160f : 1f;
-            int width = (int)(400 * scale);
-            int height = (int)(800 * scale);
-            int x = (Screen.width - width) / 2;
-            int y = (int)(20 * scale);
-
-            var style = new GUIStyle(GUI.skin.label) { fontSize = (int)(16 * scale) };
-            var fieldStyle = new GUIStyle(GUI.skin.textField) { fontSize = (int)(16 * scale) };
-            var buttonStyle = new GUIStyle(GUI.skin.button) { fontSize = (int)(16 * scale) };
-
-            GUILayout.BeginArea(new Rect(x, y, width, height), GUI.skin.box);
-            GUILayout.Label("PICO Bridge", new GUIStyle(style) { fontStyle = FontStyle.Bold, fontSize = (int)(20 * scale) });
-            GUILayout.Label($"Status: {_statusText}", style);
-            GUILayout.Space(8);
-
-            if (_discoveredServers.Count > 0 && !_manager.IsConnected)
-            {
-                GUILayout.Label("Discovered servers:", style);
-                foreach (var server in _discoveredServers)
-                {
-                    string label = $"{server.Ip}:{server.Port}";
-                    if (GUILayout.Button(label, buttonStyle))
-                    {
-                        _ipInput = server.Ip;
-                        _portInput = server.Port.ToString();
-                        _manager.SetServer(server.Ip, server.Port);
-                    }
-                }
-                GUILayout.Space(4);
-            }
-
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("IP:", style, GUILayout.Width(30 * scale));
-            _ipInput = GUILayout.TextField(_ipInput, fieldStyle);
-            GUILayout.Label(":", style, GUILayout.Width(10 * scale));
-            _portInput = GUILayout.TextField(_portInput, fieldStyle, GUILayout.Width(70 * scale));
-            GUILayout.EndHorizontal();
-
-            if (GUILayout.Button(_manager.IsConnected ? "Disconnect" : "Connect", buttonStyle))
-            {
-                if (_manager.IsConnected)
-                    _manager.TcpClient.Disconnect();
-                else if (int.TryParse(_portInput, out int port))
-                    _manager.SetServer(_ipInput, port);
-            }
-
-            GUILayout.Space(8);
-            _manager.sendHead = GUILayout.Toggle(_manager.sendHead, "Head", style);
-            _manager.sendControllers = GUILayout.Toggle(_manager.sendControllers, "Controllers", style);
-            _manager.sendHands = GUILayout.Toggle(_manager.sendHands, "Hands", style);
-            _manager.sendBody = GUILayout.Toggle(_manager.sendBody, "Body", style);
-            _manager.sendMotion = GUILayout.Toggle(_manager.sendMotion, "Motion Trackers", style);
-
-            GUILayout.Space(8);
-            bool canCamera = _manager.IsConnected && _manager.WebRtcCamera != null;
-            GUI.enabled = canCamera;
-            bool newCameraPreview = GUILayout.Toggle(_cameraPreview, "Camera Preview", style);
-            GUI.enabled = true;
-
-            if (newCameraPreview != _cameraPreview && canCamera)
-            {
-                _cameraPreview = newCameraPreview;
-                if (_cameraPreview)
-                    _manager.WebRtcCamera.StartPreview(_manager.TcpClient, 1280, 720, 30, 8 * 1024 * 1024);
-                else
-                    _manager.WebRtcCamera.StopPreview();
-            }
-
-            if (_manager.WebRtcCamera != null && _manager.WebRtcCamera.IsActive)
-            {
-                GUILayout.Label($"  Camera: {_manager.WebRtcCamera.Status}", style);
-                var texture = _manager.WebRtcCamera.Texture;
-                if (texture != null)
-                {
-                    float aspect = (float)texture.width / texture.height;
-                    float previewWidth = width - 20 * scale;
-                    float previewHeight = previewWidth / aspect;
-                    var rect = GUILayoutUtility.GetRect(previewWidth, previewHeight);
-                    GUI.DrawTexture(rect, texture, ScaleMode.ScaleToFit);
-                }
-            }
-
-            GUILayout.EndArea();
         }
 
         private void OnServerFound(string ip, int port)

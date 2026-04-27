@@ -4,6 +4,7 @@ using PicoBridge.Network;
 using PicoBridge.Tracking;
 using Unity.XR.PXR;
 using System.Collections;
+using UnityEngine.XR.Interaction.Toolkit;
 
 namespace PicoBridge
 {
@@ -28,6 +29,9 @@ namespace PicoBridge
         [Header("Timing")]
         [Range(30, 120)]
         public int trackingFps = 72;
+
+        [Header("Scene Visuals")]
+        public bool hideTrackingVisualsWithoutSignal = true;
 
         private PicoTcpClient _tcp;
         private UdpDiscovery _discovery;
@@ -78,6 +82,7 @@ namespace PicoBridge
         private void Start()
         {
             ConfigurePassthroughRendering();
+            ConfigureTrackingVisualGuards();
             StartVideoSeeThroughBootstrap();
 
 #if UNITY_EDITOR
@@ -135,6 +140,49 @@ namespace PicoBridge
                 #endif
                 _tcp.EnqueueTracking(json);
             }
+        }
+
+        private void ConfigureTrackingVisualGuards()
+        {
+            if (!hideTrackingVisualsWithoutSignal)
+                return;
+
+            foreach (var bodyBlock in FindObjectsOfType<global::PXR_BodyTrackingBlock>(true))
+            {
+                var target = bodyBlock.skeletonJoints != null ? bodyBlock.skeletonJoints.gameObject : bodyBlock.gameObject;
+                AddTrackingVisualGuard(target, TrackingVisualSignalSource.Body);
+            }
+
+#if !PICO_OPENXR_SDK
+            foreach (var hand in FindObjectsOfType<global::PXR_Hand>(true))
+            {
+                var source = hand.handType == HandType.HandLeft
+                    ? TrackingVisualSignalSource.LeftHand
+                    : TrackingVisualSignalSource.RightHand;
+                AddTrackingVisualGuard(hand.gameObject, source);
+            }
+#endif
+
+            foreach (var controller in FindObjectsOfType<ActionBasedController>(true))
+            {
+                var objectName = controller.gameObject.name.ToLowerInvariant();
+                if (objectName.Contains("left"))
+                    AddTrackingVisualGuard(controller.gameObject, TrackingVisualSignalSource.LeftController);
+                else if (objectName.Contains("right"))
+                    AddTrackingVisualGuard(controller.gameObject, TrackingVisualSignalSource.RightController);
+            }
+        }
+
+        private static void AddTrackingVisualGuard(GameObject target, TrackingVisualSignalSource source)
+        {
+            if (target == null)
+                return;
+
+            var guard = target.GetComponent<TrackingVisualSignalGate>();
+            if (guard == null)
+                guard = target.AddComponent<TrackingVisualSignalGate>();
+
+            guard.Configure(source);
         }
 
         private void OnServerDiscovered(string ip, int port)
