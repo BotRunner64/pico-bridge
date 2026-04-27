@@ -1,11 +1,5 @@
 using System;
-using System.Collections.Generic;
-using Unity.XR.PXR;
 using UnityEngine;
-using UnityEngine.XR;
-#if PICO_OPENXR_SDK
-using Unity.XR.OpenXR.Features.PICOSupport;
-#endif
 
 namespace PicoBridge.Tracking
 {
@@ -28,7 +22,6 @@ namespace PicoBridge.Tracking
         [SerializeField] private bool disableColliders = true;
         [SerializeField] private float refreshInterval = 0.1f;
 
-        private readonly List<InputDevice> _devices = new List<InputDevice>();
         private Renderer[] _renderers = Array.Empty<Renderer>();
         private Collider[] _colliders = Array.Empty<Collider>();
         private bool _visible = true;
@@ -112,23 +105,15 @@ namespace PicoBridge.Tracking
             switch (signalSource)
             {
                 case TrackingVisualSignalSource.Body:
-                    return HasValidBodySignal();
+                    return TrackingSignalStatus.HasValidSignal(TrackingSignalKind.Body);
                 case TrackingVisualSignalSource.LeftHand:
-#if !PICO_OPENXR_SDK
-                    return HasValidHandSignal(HandType.HandLeft);
-#else
-                    return false;
-#endif
+                    return TrackingSignalStatus.HasValidSignal(TrackingSignalKind.LeftHand);
                 case TrackingVisualSignalSource.RightHand:
-#if !PICO_OPENXR_SDK
-                    return HasValidHandSignal(HandType.HandRight);
-#else
-                    return false;
-#endif
+                    return TrackingSignalStatus.HasValidSignal(TrackingSignalKind.RightHand);
                 case TrackingVisualSignalSource.LeftController:
-                    return HasValidControllerSignal(InputDeviceCharacteristics.Left);
+                    return TrackingSignalStatus.HasValidSignal(TrackingSignalKind.LeftController);
                 case TrackingVisualSignalSource.RightController:
-                    return HasValidControllerSignal(InputDeviceCharacteristics.Right);
+                    return TrackingSignalStatus.HasValidSignal(TrackingSignalKind.RightController);
                 default:
                     return false;
             }
@@ -137,47 +122,5 @@ namespace PicoBridge.Tracking
 #endif
         }
 
-#if UNITY_ANDROID && !UNITY_EDITOR
-        private static bool HasValidBodySignal()
-        {
-            var tracking = false;
-            var status = new BodyTrackingStatus();
-#if PICO_OPENXR_SDK
-            BodyTrackingFeature.GetBodyTrackingState(ref tracking, ref status);
-#else
-            PXR_MotionTracking.GetBodyTrackingState(ref tracking, ref status);
-#endif
-            return tracking && status.stateCode == BodyTrackingStatusCode.BT_VALID;
-        }
-
-        private bool HasValidControllerSignal(InputDeviceCharacteristics hand)
-        {
-            _devices.Clear();
-            InputDevices.GetDevicesWithCharacteristics(hand | InputDeviceCharacteristics.Controller, _devices);
-
-            foreach (var device in _devices)
-            {
-                if (device.TryGetFeatureValue(CommonUsages.isTracked, out var isTracked) && isTracked)
-                    return true;
-
-                if (device.TryGetFeatureValue(CommonUsages.trackingState, out var trackingState) &&
-                    (trackingState & (InputTrackingState.Position | InputTrackingState.Rotation)) != 0)
-                    return true;
-            }
-
-            return false;
-        }
-#endif
-
-#if UNITY_ANDROID && !UNITY_EDITOR && !PICO_OPENXR_SDK
-        private static bool HasValidHandSignal(HandType handType)
-        {
-            var joints = new HandJointLocations();
-            return PXR_HandTracking.GetJointLocations(handType, ref joints) &&
-                   joints.isActive > 0 &&
-                   joints.jointLocations != null &&
-                   joints.jointCount > 0;
-        }
-#endif
     }
 }

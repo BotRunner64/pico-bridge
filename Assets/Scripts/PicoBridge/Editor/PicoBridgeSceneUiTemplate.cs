@@ -16,11 +16,23 @@ namespace PicoBridge.Editor
         private const string CanvasName = "[Building Block] Controller Canvas Interaction Canvas";
         private const string TemplateName = "PicoBridge Panel Template";
 
-        private static readonly Vector2 CanvasSize = new Vector2(1120f, 820f);
+        private const float MinUiOpacity = 0.05f;
+        private static readonly Vector2 CanvasSize = new Vector2(1120f, 860f);
         private static readonly Color PanelColor = new Color(0.035f, 0.041f, 0.052f, 0.94f);
         private static readonly Color PreviewEmptyColor = new Color(0f, 0f, 0f, 0.82f);
         private static readonly Color DisconnectedColor = new Color(0.95f, 0.22f, 0.22f, 1f);
+        private static readonly Color SignalInactiveColor = new Color(0.24f, 0.27f, 0.31f, 1f);
         private static readonly Color MutedTextColor = new Color(0.70f, 0.76f, 0.84f, 1f);
+        private static readonly string[] TrackingSignalLabels =
+        {
+            "HEAD",
+            "L CTRL",
+            "R CTRL",
+            "L HAND",
+            "R HAND",
+            "BODY",
+            "MOTION"
+        };
 
         [MenuItem("PicoBridge/Rebuild Scene UI Template")]
         public static void RebuildOpenSceneUiTemplate()
@@ -57,6 +69,7 @@ namespace PicoBridge.Editor
             var root = CreateRect(TemplateName, canvas.transform);
             SetStretch(root, 20f);
             AddImage(root.gameObject, PanelColor);
+            var rootCanvasGroup = AddRootCanvasGroup(root);
             var rootLayout = AddVerticalLayout(root.gameObject, 18, 18, 18, 18, 14f);
             rootLayout.childControlHeight = true;
             rootLayout.childControlWidth = true;
@@ -64,6 +77,7 @@ namespace PicoBridge.Editor
             rootLayout.childForceExpandWidth = true;
 
             var view = root.gameObject.AddComponent<PicoBridgePanelView>();
+            view.rootCanvasGroup = rootCanvasGroup;
             var controller = root.gameObject.AddComponent<PicoBridgePanelController>();
             AssignControllerReferences(controller, view, Object.FindObjectOfType<PicoBridgeManager>());
 
@@ -131,7 +145,7 @@ namespace PicoBridge.Editor
         private static void BuildPreview(RectTransform parent, PicoBridgePanelView view)
         {
             var preview = CreateRect("CameraPreview", parent);
-            AddLayoutElement(preview.gameObject, -1f, 588f, 1f, 1f);
+            AddLayoutElement(preview.gameObject, -1f, 594f, 1f, 1f);
 
             view.cameraPreviewImage = preview.gameObject.AddComponent<RawImage>();
             view.cameraPreviewImage.color = PreviewEmptyColor;
@@ -139,17 +153,26 @@ namespace PicoBridge.Editor
 
         private static void BuildFooter(RectTransform parent, PicoBridgePanelView view)
         {
-            var footer = CreateRow("Signals", parent, 58f, 18f);
+            var footer = CreateColumn("Signals", parent, 8f);
+            AddLayoutElement(footer.gameObject, -1f, 96f, 0f, 0f);
 
-            var tracking = CreateRow("Tracking", footer, 52f, 10f);
-            AddLayoutElement(tracking.gameObject, -1f, 52f, 1f, 0f);
-            view.trackingStatusImage = CreateSignalDot("Dot", tracking, DisconnectedColor);
-            view.trackingStatusText = CreateText("TrackingStatus", tracking, "Tracking idle", 22, FontStyles.Bold, TextAlignmentOptions.Left, Color.white);
-            AddLayoutElement(view.trackingStatusText.gameObject, -1f, 44f, 1f, 0f);
+            var tracking = CreateRow("TrackingSignals", footer, 50f, 8f);
+            view.trackingSignalImages = new Image[TrackingSignalLabels.Length];
+            view.trackingSignalLabels = new TMP_Text[TrackingSignalLabels.Length];
+            for (int i = 0; i < TrackingSignalLabels.Length; i++)
+                CreateSignalPill(tracking, view, i);
 
-            view.cameraStatusText = CreateText("CameraStatus", footer, "Camera idle", 22, FontStyles.Bold, TextAlignmentOptions.Right, MutedTextColor);
+            var statusRow = CreateRow("StatusAndOpacity", footer, 30f, 12f);
+            view.cameraStatusText = CreateText("CameraStatus", statusRow, "Camera idle", 18, FontStyles.Bold, TextAlignmentOptions.Left, MutedTextColor);
             view.cameraStatusText.enableWordWrapping = false;
-            AddLayoutElement(view.cameraStatusText.gameObject, 300f, 52f, 0f, 0f);
+            AddLayoutElement(view.cameraStatusText.gameObject, -1f, 30f, 1f, 0f);
+
+            var opacityControl = CreateRow("OpacityControl", statusRow, 30f, 8f);
+            AddLayoutElement(opacityControl.gameObject, 330f, 30f, 0f, 0f);
+            var opacityLabel = CreateText("Label", opacityControl, "UI", 16, FontStyles.Bold, TextAlignmentOptions.Center, MutedTextColor);
+            opacityLabel.enableWordWrapping = false;
+            AddLayoutElement(opacityLabel.gameObject, 28f, 30f, 0f, 0f);
+            view.uiOpacitySlider = CreateOpacitySlider(opacityControl);
         }
 
         private static RectTransform CreateRow(string name, RectTransform parent, float height, float spacing)
@@ -167,12 +190,73 @@ namespace PicoBridge.Editor
             return rect;
         }
 
-        private static Image CreateSignalDot(string name, RectTransform parent, Color color)
+        private static RectTransform CreateColumn(string name, RectTransform parent, float spacing)
         {
-            var dot = CreateRect(name, parent);
-            var image = AddImage(dot.gameObject, color);
-            AddLayoutElement(dot.gameObject, 18f, 18f, 0f, 0f);
-            return image;
+            var rect = CreateRect(name, parent);
+            var layout = rect.gameObject.AddComponent<VerticalLayoutGroup>();
+            layout.padding = new RectOffset(0, 0, 0, 0);
+            layout.spacing = spacing;
+            layout.childAlignment = TextAnchor.MiddleLeft;
+            layout.childControlHeight = true;
+            layout.childControlWidth = true;
+            layout.childForceExpandHeight = false;
+            layout.childForceExpandWidth = true;
+            return rect;
+        }
+
+        private static void CreateSignalPill(RectTransform parent, PicoBridgePanelView view, int index)
+        {
+            var pill = CreateRect(TrackingSignalLabels[index], parent);
+            view.trackingSignalImages[index] = AddImage(pill.gameObject, SignalInactiveColor);
+            AddLayoutElement(pill.gameObject, -1f, 46f, 1f, 0f);
+
+            view.trackingSignalLabels[index] = CreateText("Label", pill, TrackingSignalLabels[index], 16, FontStyles.Bold, TextAlignmentOptions.Center, MutedTextColor);
+            view.trackingSignalLabels[index].enableWordWrapping = false;
+            SetStretch(view.trackingSignalLabels[index].rectTransform, 0f);
+        }
+
+        private static Slider CreateOpacitySlider(RectTransform parent)
+        {
+            var sliderRect = CreateRect("OpacityBar", parent);
+            AddLayoutElement(sliderRect.gameObject, 294f, 30f, 1f, 0f);
+
+            var slider = sliderRect.gameObject.AddComponent<Slider>();
+            slider.minValue = MinUiOpacity;
+            slider.maxValue = 1f;
+            slider.value = 1f;
+            slider.wholeNumbers = false;
+            slider.transition = Selectable.Transition.ColorTint;
+
+            var background = CreateRect("Background", sliderRect);
+            var backgroundImage = AddImage(background.gameObject, new Color(0.12f, 0.14f, 0.17f, 1f));
+            SetStretch(background, 0f);
+            background.offsetMin = new Vector2(0f, 9f);
+            background.offsetMax = new Vector2(0f, -9f);
+
+            var fillArea = CreateRect("Fill Area", sliderRect);
+            SetStretch(fillArea, 0f);
+            fillArea.offsetMin = new Vector2(3f, 9f);
+            fillArea.offsetMax = new Vector2(-3f, -9f);
+
+            var fill = CreateRect("Fill", fillArea);
+            var fillImage = AddImage(fill.gameObject, new Color(0.84f, 0.88f, 0.94f, 1f));
+            SetStretch(fill, 0f);
+
+            var handleArea = CreateRect("Handle Slide Area", sliderRect);
+            SetStretch(handleArea, 0f);
+            handleArea.offsetMin = new Vector2(8f, 0f);
+            handleArea.offsetMax = new Vector2(-8f, 0f);
+
+            var handle = CreateRect("Handle", handleArea);
+            var handleImage = AddImage(handle.gameObject, Color.white);
+            handle.sizeDelta = new Vector2(18f, 24f);
+
+            slider.fillRect = fill;
+            slider.handleRect = handle;
+            slider.targetGraphic = handleImage;
+            backgroundImage.raycastTarget = true;
+            fillImage.raycastTarget = false;
+            return slider;
         }
 
         private static TMP_Text CreateText(string name, RectTransform parent, string text, int fontSize, FontStyles style, TextAlignmentOptions alignment, Color color)
@@ -201,6 +285,15 @@ namespace PicoBridge.Editor
             var image = target.AddComponent<Image>();
             image.color = color;
             return image;
+        }
+
+        private static CanvasGroup AddRootCanvasGroup(RectTransform root)
+        {
+            var group = root.gameObject.AddComponent<CanvasGroup>();
+            group.alpha = 1f;
+            group.interactable = true;
+            group.blocksRaycasts = true;
+            return group;
         }
 
         private static VerticalLayoutGroup AddVerticalLayout(GameObject target, int left, int right, int top, int bottom, float spacing)
