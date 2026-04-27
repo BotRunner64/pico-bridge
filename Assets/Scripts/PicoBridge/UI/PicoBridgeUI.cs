@@ -15,7 +15,7 @@ namespace PicoBridge.UI
     public class PicoBridgeUI : MonoBehaviour
     {
         [Header("Generated UI")]
-        [SerializeField] private bool createGeneratedWorldSpaceUi = true;
+        [SerializeField] private bool createGeneratedWorldSpaceUi;
         [SerializeField] private bool showGeneratedWorldSpaceUiInEditor;
 
         [Header("Scene UI Input")]

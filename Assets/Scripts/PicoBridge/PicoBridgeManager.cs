@@ -86,6 +86,9 @@ namespace PicoBridge
             StartVideoSeeThroughBootstrap();
 
 #if UNITY_EDITOR
+            if (autoDiscovery)
+                _discovery.StartListening();
+
             // Keep Editor Play from auto-claiming the single PC receiver while a headset is testing.
             if (!autoDiscovery)
                 _tcp.Connect();
@@ -188,6 +191,11 @@ namespace PicoBridge
         private void OnServerDiscovered(string ip, int port)
         {
             Debug.Log($"[PicoBridge] Server discovered: {ip}:{port}");
+#if UNITY_EDITOR
+            // Editor should populate the scene UI list without auto-claiming a receiver.
+            if (autoDiscovery)
+                return;
+#endif
             // Auto-connect to first discovered server if not already connected
             if (!IsConnected && !_autoConnected)
             {
