@@ -14,6 +14,15 @@ namespace PicoBridge.UI
     /// </summary>
     public class PicoBridgeUI : MonoBehaviour
     {
+        [Header("Generated UI")]
+        [SerializeField] private bool createGeneratedWorldSpaceUi = true;
+        [SerializeField] private bool showGeneratedWorldSpaceUiInEditor;
+
+        [Header("Scene UI Input")]
+        [SerializeField] private bool configureWorldSpaceCanvasInput = true;
+        [SerializeField] private bool enableMouseInputInEditor = true;
+        [SerializeField] private bool enableTouchInputInEditor;
+
         private struct DiscoveredServer
         {
             public string Ip;
@@ -67,6 +76,8 @@ namespace PicoBridge.UI
         private Text _diagnosticsLabel;
         private Text _collapseButtonLabel;
 
+        private bool ShouldShowGeneratedWorldSpaceUi => createGeneratedWorldSpaceUi && (!Application.isEditor || showGeneratedWorldSpaceUiInEditor);
+
         private void Start()
         {
             _manager = GetComponent<PicoBridgeManager>();
@@ -82,7 +93,10 @@ namespace PicoBridge.UI
                     _manager.Discovery.OnServerFound += OnServerFound;
             }
 
-            if (!Application.isEditor)
+            if (configureWorldSpaceCanvasInput)
+                ConfigureWorldSpaceCanvasInput();
+
+            if (ShouldShowGeneratedWorldSpaceUi)
                 EnsureWorldSpaceUi();
         }
 
@@ -96,7 +110,7 @@ namespace PicoBridge.UI
         {
             if (_manager == null) return;
 
-            if (!Application.isEditor && _worldCanvas == null)
+            if (ShouldShowGeneratedWorldSpaceUi && _worldCanvas == null)
                 EnsureWorldSpaceUi();
 
             if (_manager.IsConnected)
@@ -114,7 +128,7 @@ namespace PicoBridge.UI
             else
                 _statusText = "Disconnected";
 
-            if (!Application.isEditor)
+            if (ShouldShowGeneratedWorldSpaceUi)
                 SyncWorldSpaceUi();
         }
 
@@ -134,6 +148,33 @@ namespace PicoBridge.UI
             _discoveredServersDirty = true;
         }
 
+        private void ConfigureWorldSpaceCanvasInput()
+        {
+            EnsureXrEventSystem();
+
+            var canvases = FindObjectsOfType<Canvas>(true);
+            foreach (var canvas in canvases)
+            {
+                if (canvas.renderMode != RenderMode.WorldSpace)
+                    continue;
+
+                var trackedRaycaster = canvas.GetComponent<TrackedDeviceGraphicRaycaster>();
+                if (trackedRaycaster == null)
+                    trackedRaycaster = canvas.gameObject.AddComponent<TrackedDeviceGraphicRaycaster>();
+                trackedRaycaster.enabled = true;
+
+                var graphicRaycaster = canvas.GetComponent<GraphicRaycaster>();
+                if (Application.isEditor && enableMouseInputInEditor)
+                {
+                    if (graphicRaycaster == null)
+                        graphicRaycaster = canvas.gameObject.AddComponent<GraphicRaycaster>();
+                    graphicRaycaster.enabled = true;
+                }
+                else if (graphicRaycaster != null)
+                    graphicRaycaster.enabled = false;
+            }
+        }
+
         private void EnsureWorldSpaceUi()
         {
             if (_manager == null || _worldCanvas != null)
@@ -144,7 +185,7 @@ namespace PicoBridge.UI
                 return;
 
             EnsureXrEventSystem();
-            _font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
             var canvasObject = new GameObject("PicoBridge XR UI", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(TrackedDeviceGraphicRaycaster));
             canvasObject.transform.SetParent(mainCamera.transform, false);
@@ -312,8 +353,8 @@ namespace PicoBridge.UI
 
             xrUiInputModule.activeInputMode = XRUIInputModule.ActiveInputMode.InputSystemActions;
             xrUiInputModule.enableXRInput = true;
-            xrUiInputModule.enableMouseInput = false;
-            xrUiInputModule.enableTouchInput = false;
+            xrUiInputModule.enableMouseInput = Application.isEditor && enableMouseInputInEditor;
+            xrUiInputModule.enableTouchInput = Application.isEditor && enableTouchInputInEditor;
             xrUiInputModule.enableBuiltinActionsAsFallback = true;
         }
 
