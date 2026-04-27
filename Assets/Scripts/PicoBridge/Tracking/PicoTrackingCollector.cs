@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine;
@@ -116,10 +117,15 @@ namespace PicoBridge.Tracking
                 dev.TryGetFeatureValue(CommonUsages.secondaryButton, out var secondaryButton);
                 dev.TryGetFeatureValue(CommonUsages.menuButton, out var menuButton);
 
-                _sb.Append($",\"axisX\":{axis2D.x:F4},\"axisY\":{axis2D.y:F4}");
+                _sb.Append(",\"axisX\":");
+                AppendJsonNumber(axis2D.x);
+                _sb.Append(",\"axisY\":");
+                AppendJsonNumber(axis2D.y);
                 _sb.Append($",\"axisClick\":{BoolStr(axisClick)}");
-                _sb.Append($",\"grip\":{grip:F4}");
-                _sb.Append($",\"trigger\":{trigger:F4}");
+                _sb.Append(",\"grip\":");
+                AppendJsonNumber(grip);
+                _sb.Append(",\"trigger\":");
+                AppendJsonNumber(trigger);
                 _sb.Append($",\"primaryButton\":{BoolStr(primaryButton)}");
                 _sb.Append($",\"secondaryButton\":{BoolStr(secondaryButton)}");
                 _sb.Append($",\"menuButton\":{BoolStr(menuButton)}");
@@ -146,7 +152,8 @@ namespace PicoBridge.Tracking
 
             _sb.Append($"\"{key}\":{{\"isActive\":{BoolStr(ok && joints.isActive > 0)}");
             _sb.Append($",\"count\":{(ok ? joints.jointCount : 0)}");
-            _sb.Append($",\"scale\":{(ok ? joints.handScale : 1f):F4}");
+            _sb.Append(",\"scale\":");
+            AppendJsonNumber(ok ? joints.handScale : 1f);
 
             if (ok && joints.isActive > 0 && joints.jointLocations != null)
             {
@@ -159,7 +166,9 @@ namespace PicoBridge.Tracking
                     AppendPose(
                         j.pose.Position.x, j.pose.Position.y, j.pose.Position.z,
                         j.pose.Orientation.x, j.pose.Orientation.y, j.pose.Orientation.z, j.pose.Orientation.w);
-                    _sb.Append($"\",\"s\":{(ulong)j.locationStatus},\"r\":{j.radius:F4}}}");
+                    _sb.Append($"\",\"s\":{(ulong)j.locationStatus},\"r\":");
+                    AppendJsonNumber(j.radius);
+                    _sb.Append('}');
                 }
                 _sb.Append(']');
             }
@@ -241,12 +250,65 @@ namespace PicoBridge.Tracking
 
         private void AppendPose(float x, float y, float z, float qx, float qy, float qz, float qw)
         {
-            _sb.Append($"{x:F6},{y:F6},{z:F6},{qx:F6},{qy:F6},{qz:F6},{qw:F6}");
+            AppendPoseComponent(x);
+            _sb.Append(',');
+            AppendPoseComponent(y);
+            _sb.Append(',');
+            AppendPoseComponent(z);
+            _sb.Append(',');
+            AppendPoseComponent(qx);
+            _sb.Append(',');
+            AppendPoseComponent(qy);
+            _sb.Append(',');
+            AppendPoseComponent(qz);
+            _sb.Append(',');
+            AppendPoseComponent(qw);
         }
 
         private void AppendPoseDouble(double x, double y, double z, double qx, double qy, double qz, double qw)
         {
-            _sb.Append($"{x:F6},{y:F6},{z:F6},{qx:F6},{qy:F6},{qz:F6},{qw:F6}");
+            AppendPoseComponent(x);
+            _sb.Append(',');
+            AppendPoseComponent(y);
+            _sb.Append(',');
+            AppendPoseComponent(z);
+            _sb.Append(',');
+            AppendPoseComponent(qx);
+            _sb.Append(',');
+            AppendPoseComponent(qy);
+            _sb.Append(',');
+            AppendPoseComponent(qz);
+            _sb.Append(',');
+            AppendPoseComponent(qw);
+        }
+
+        private void AppendPoseComponent(float value)
+        {
+            _sb.Append(JsonNumber(value, "F6"));
+        }
+
+        private void AppendPoseComponent(double value)
+        {
+            _sb.Append(JsonNumber(value, "F6"));
+        }
+
+        private void AppendJsonNumber(float value)
+        {
+            _sb.Append(JsonNumber(value, "F4"));
+        }
+
+        private static string JsonNumber(float value, string format)
+        {
+            if (float.IsNaN(value) || float.IsInfinity(value))
+                return "0";
+            return value.ToString(format, CultureInfo.InvariantCulture);
+        }
+
+        private static string JsonNumber(double value, string format)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value))
+                return "0";
+            return value.ToString(format, CultureInfo.InvariantCulture);
         }
 
         private static string BoolStr(bool v) => v ? "true" : "false";

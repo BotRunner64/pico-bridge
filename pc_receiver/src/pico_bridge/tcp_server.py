@@ -192,8 +192,17 @@ class PicoBridgeServer:
         text = pkt.data.decode("utf-8", errors="replace")
         try:
             obj = json.loads(text)
-        except json.JSONDecodeError:
-            log.warning("bad function JSON: %s", text[:200])
+        except json.JSONDecodeError as e:
+            start = max(e.pos - 80, 0)
+            end = min(e.pos + 80, len(text))
+            log.warning(
+                "bad function JSON at char %d/%d: %s; near=%r; prefix=%r",
+                e.pos,
+                len(text),
+                e.msg,
+                text[start:end],
+                text[:200],
+            )
             return
 
         fn_name = obj.get("functionName", "")
