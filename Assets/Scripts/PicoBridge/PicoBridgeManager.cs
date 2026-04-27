@@ -35,7 +35,9 @@ namespace PicoBridge
 
         private PicoTcpClient _tcp;
         private UdpDiscovery _discovery;
+#if !UNITY_EDITOR
         private PicoTrackingCollector _collector;
+#endif
         private WebRtcCameraReceiver _webRtcCamera;
         private float _trackingInterval;
         private float _trackingTimer;
@@ -71,11 +73,9 @@ namespace PicoBridge
             // Camera preview
             _webRtcCamera = gameObject.AddComponent<WebRtcCameraReceiver>();
 
-            #if UNITY_EDITOR
-            _collector = null; // Use mock in Editor
-            #else
+#if !UNITY_EDITOR
             _collector = new PicoTrackingCollector();
-            #endif
+#endif
             _trackingInterval = 1f / trackingFps;
         }
 
@@ -85,21 +85,12 @@ namespace PicoBridge
             ConfigureTrackingVisualGuards();
             StartVideoSeeThroughBootstrap();
 
-#if UNITY_EDITOR
-            if (autoDiscovery)
-                _discovery.StartListening();
-
-            // Keep Editor Play from auto-claiming the single PC receiver while a headset is testing.
-            if (!autoDiscovery)
-                _tcp.Connect();
-#else
             if (autoDiscovery)
                 _discovery.StartListening();
 
             // Don't auto-connect to hardcoded IP if discovery is on
             if (!autoDiscovery)
                 _tcp.Connect();
-#endif
         }
 
         private void OnEnable()
@@ -191,11 +182,6 @@ namespace PicoBridge
         private void OnServerDiscovered(string ip, int port)
         {
             Debug.Log($"[PicoBridge] Server discovered: {ip}:{port}");
-#if UNITY_EDITOR
-            // Editor should populate the scene UI list without auto-claiming a receiver.
-            if (autoDiscovery)
-                return;
-#endif
             // Auto-connect to first discovered server if not already connected
             if (!IsConnected && !_autoConnected)
             {

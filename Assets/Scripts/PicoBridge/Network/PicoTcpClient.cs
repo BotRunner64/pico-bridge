@@ -38,8 +38,10 @@ namespace PicoBridge.Network
         private readonly ConcurrentQueue<byte[]> _sendQueue = new ConcurrentQueue<byte[]>();
         private readonly ConcurrentQueue<string> _trackingQueue = new ConcurrentQueue<string>();
         private volatile bool _running;
+        private int _connectGeneration;
         private float _lastHeartbeat;
         private float _reconnectTimer;
+        private string _lastReportedConnectFailure;
 
         // ── public API ────────────────────────────────────
 
@@ -59,14 +61,16 @@ namespace PicoBridge.Network
 
             try
             {
-                _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-                _socket.SendTimeout = 15000;
-                _socket.NoDelay = true;
-                _socket.BeginConnect(serverAddress, serverPort, OnConnectCallback, null);
+                int generation = Interlocked.Increment(ref _connectGeneration);
+                var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                socket.SendTimeout = 15000;
+                socket.NoDelay = true;
+                _socket = socket;
+                socket.BeginConnect(serverAddress, serverPort, OnConnectCallback, new ConnectAttempt(socket, generation));
             }
             catch (Exception e)
             {
-                Debug.LogError($"[PicoBridge] Connect error: {e.Message}");
+                ReportConnectFailure("Connect error", e);
                 State = SocketState.Error;
             }
         }
@@ -132,11 +136,19 @@ namespace PicoBridge.Network
 
         private void OnConnectCallback(IAsyncResult ar)
         {
+            var attempt = (ConnectAttempt)ar.AsyncState;
             try
             {
-                _socket.EndConnect(ar);
+                attempt.Socket.EndConnect(ar);
+                if (attempt.Generation != Volatile.Read(ref _connectGeneration) || _socket != attempt.Socket)
+                {
+                    try { attempt.Socket.Close(); } catch { }
+                    return;
+                }
+
                 State = SocketState.Working;
                 _lastHeartbeat = 0;
+                _lastReportedConnectFailure = null;
 
                 _receiveThread = new Thread(ReceiveLoop) { IsBackground = true };
                 _receiveThread.Start();
@@ -151,9 +163,44 @@ namespace PicoBridge.Network
             }
             catch (Exception e)
             {
-                Debug.LogError($"[PicoBridge] Connect failed: {e.Message}");
+                if (attempt.Generation != Volatile.Read(ref _connectGeneration))
+                {
+                    try { attempt.Socket.Close(); } catch { }
+                    return;
+                }
+
+                ReportConnectFailure("Connect failed", e);
                 State = SocketState.Error;
                 CloseSocket();
+            }
+        }
+
+        private void ReportConnectFailure(string prefix, Exception exception)
+        {
+            if (autoReconnect)
+            {
+                string failureKey = $"{serverAddress}:{serverPort}|{exception.GetType().FullName}|{exception.Message}";
+                if (_lastReportedConnectFailure == failureKey)
+                    return;
+
+                _lastReportedConnectFailure = failureKey;
+                Debug.LogWarning($"[PicoBridge] {prefix}: {exception.Message}; retrying automatically");
+                return;
+            }
+
+            _lastReportedConnectFailure = null;
+            Debug.LogError($"[PicoBridge] {prefix}: {exception.Message}");
+        }
+
+        private readonly struct ConnectAttempt
+        {
+            public readonly Socket Socket;
+            public readonly int Generation;
+
+            public ConnectAttempt(Socket socket, int generation)
+            {
+                Socket = socket;
+                Generation = generation;
             }
         }
 
@@ -294,6 +341,7 @@ namespace PicoBridge.Network
 
         private void CloseSocket()
         {
+            Interlocked.Increment(ref _connectGeneration);
             _running = false;
             try { _socket?.Shutdown(SocketShutdown.Both); } catch { }
             try { _socket?.Close(); } catch { }
