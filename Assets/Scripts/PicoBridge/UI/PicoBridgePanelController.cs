@@ -26,12 +26,13 @@ namespace PicoBridge.UI
         private const string CollapseCollapsedIcon = "▲";
         private static readonly Vector2 CollapsedAnchor = new Vector2(0.5f, 0f);
         private static readonly Vector2 CollapsedSize = new Vector2(64f, 44f);
-        private static readonly Color PreviewEmptyColor = new Color(0f, 0f, 0f, 0.56f);
-        private static readonly Color DisconnectedColor = new Color(0.95f, 0.22f, 0.22f, 1f);
-        private static readonly Color ConnectingColor = new Color(1f, 0.69f, 0.18f, 1f);
-        private static readonly Color ConnectedColor = new Color(0.12f, 0.78f, 0.38f, 1f);
-        private static readonly Color SignalInactiveColor = new Color(0.1961f, 0.1961f, 0.1961f, 1f);
-        private static readonly Color MutedTextColor = new Color(0.76f, 0.76f, 0.76f, 1f);
+        private static readonly Color PreviewEmptyColor = new Color(0.018f, 0.023f, 0.026f, 0.72f);
+        private static readonly Color DisconnectedColor = new Color(0.88f, 0.22f, 0.29f, 1f);
+        private static readonly Color ConnectingColor = new Color(0.96f, 0.63f, 0.16f, 1f);
+        private static readonly Color ConnectedColor = new Color(0.16f, 0.74f, 0.43f, 1f);
+        private static readonly Color SignalInactiveColor = new Color(0.16f, 0.19f, 0.205f, 1f);
+        private static readonly Color TextColor = new Color(0.94f, 0.975f, 0.985f, 1f);
+        private static readonly Color MutedTextColor = new Color(0.66f, 0.72f, 0.75f, 1f);
         private static readonly TrackingSignalKind[] TrackingSignals =
         {
             TrackingSignalKind.Head,
@@ -150,8 +151,9 @@ namespace PicoBridge.UI
                 view.statusPillText.text = status;
             if (view.endpointText != null)
             {
-                view.endpointText.gameObject.SetActive(connected);
-                view.endpointText.text = connected ? $"{manager.serverAddress}:{manager.serverPort}" : string.Empty;
+                view.endpointText.gameObject.SetActive(true);
+                view.endpointText.text = manager != null ? $"{manager.serverAddress}:{manager.serverPort}" : "Endpoint waiting";
+                view.endpointText.color = connected ? TextColor : MutedTextColor;
             }
         }
 
@@ -166,7 +168,7 @@ namespace PicoBridge.UI
                 if (i < view.trackingSignalImages.Length && view.trackingSignalImages[i] != null)
                     view.trackingSignalImages[i].color = active ? ConnectedColor : SignalInactiveColor;
                 if (i < view.trackingSignalLabels.Length && view.trackingSignalLabels[i] != null)
-                    view.trackingSignalLabels[i].color = active ? Color.white : MutedTextColor;
+                    view.trackingSignalLabels[i].color = active ? TextColor : MutedTextColor;
             }
         }
 
