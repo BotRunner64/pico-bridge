@@ -17,13 +17,14 @@ namespace PicoBridge.Editor
         private const string TemplateName = "PicoBridge Panel Template";
 
         private const float MinUiOpacity = 0.05f;
+        private const string CollapseExpandedIcon = "▼";
         private static readonly Vector2 CanvasSize = new Vector2(1120f, 860f);
-        private static readonly Color PanelColor = new Color(0.035f, 0.041f, 0.052f, 0.94f);
-        private static readonly Color BadgeColor = new Color(0.12f, 0.14f, 0.17f, 0.96f);
-        private static readonly Color PreviewEmptyColor = new Color(0f, 0f, 0f, 0.82f);
+        private static readonly Color PanelColor = new Color(0.1608f, 0.1608f, 0.1608f, 0.96f);
+        private static readonly Color BadgeColor = new Color(0.1333f, 0.1333f, 0.1333f, 0.63f);
+        private static readonly Color PreviewEmptyColor = new Color(0f, 0f, 0f, 0.56f);
         private static readonly Color DisconnectedColor = new Color(0.95f, 0.22f, 0.22f, 1f);
-        private static readonly Color SignalInactiveColor = new Color(0.24f, 0.27f, 0.31f, 1f);
-        private static readonly Color MutedTextColor = new Color(0.70f, 0.76f, 0.84f, 1f);
+        private static readonly Color SignalInactiveColor = new Color(0.1961f, 0.1961f, 0.1961f, 1f);
+        private static readonly Color MutedTextColor = new Color(0.76f, 0.76f, 0.76f, 1f);
         private static readonly string[] TrackingSignalLabels =
         {
             "HEAD",
@@ -184,21 +185,21 @@ namespace PicoBridge.Editor
         private static void BuildCollapseBadge(RectTransform parent, PicoBridgePanelView view)
         {
             var badge = CreateRect("CollapseBadge", parent);
-            badge.anchorMin = Vector2.one;
-            badge.anchorMax = Vector2.one;
-            badge.pivot = Vector2.one;
-            badge.anchoredPosition = new Vector2(-8f, -8f);
-            badge.sizeDelta = new Vector2(46f, 46f);
+            badge.anchorMin = new Vector2(0.5f, 0f);
+            badge.anchorMax = new Vector2(0.5f, 0f);
+            badge.pivot = new Vector2(0.5f, 0f);
+            badge.anchoredPosition = new Vector2(0f, 8f);
+            badge.sizeDelta = new Vector2(54f, 34f);
 
             var image = AddImage(badge.gameObject, BadgeColor);
             var button = badge.gameObject.AddComponent<Button>();
             button.targetGraphic = image;
 
-            var layout = AddLayoutElement(badge.gameObject, 46f, 46f, 0f, 0f);
+            var layout = AddLayoutElement(badge.gameObject, 54f, 34f, 0f, 0f);
             layout.ignoreLayout = true;
 
             view.collapseButton = button;
-            view.collapseButtonText = CreateText("Label", badge, "-", 28, FontStyles.Bold, TextAlignmentOptions.Center, Color.white);
+            view.collapseButtonText = CreateText("Label", badge, CollapseExpandedIcon, 24, FontStyles.Bold, TextAlignmentOptions.Center, Color.white);
             view.collapseButtonText.enableWordWrapping = false;
             SetStretch(view.collapseButtonText.rectTransform, 0f);
         }
@@ -256,7 +257,7 @@ namespace PicoBridge.Editor
             slider.transition = Selectable.Transition.ColorTint;
 
             var background = CreateRect("Background", sliderRect);
-            var backgroundImage = AddImage(background.gameObject, new Color(0.12f, 0.14f, 0.17f, 1f));
+            var backgroundImage = AddImage(background.gameObject, new Color(0.1961f, 0.1961f, 0.1961f, 1f));
             SetStretch(background, 0f);
             background.offsetMin = new Vector2(0f, 9f);
             background.offsetMax = new Vector2(0f, -9f);
@@ -267,7 +268,7 @@ namespace PicoBridge.Editor
             fillArea.offsetMax = new Vector2(-3f, -9f);
 
             var fill = CreateRect("Fill", fillArea);
-            var fillImage = AddImage(fill.gameObject, new Color(0.84f, 0.88f, 0.94f, 1f));
+            var fillImage = AddImage(fill.gameObject, new Color(0.96f, 0.96f, 0.96f, 1f));
             SetStretch(fill, 0f);
 
             var handleArea = CreateRect("Handle Slide Area", sliderRect);
@@ -277,7 +278,7 @@ namespace PicoBridge.Editor
 
             var handle = CreateRect("Handle", handleArea);
             var handleImage = AddImage(handle.gameObject, Color.white);
-            handle.sizeDelta = new Vector2(18f, 24f);
+            handle.sizeDelta = new Vector2(18f, 26f);
 
             slider.fillRect = fill;
             slider.handleRect = handle;
@@ -312,7 +313,18 @@ namespace PicoBridge.Editor
         {
             var image = target.AddComponent<Image>();
             image.color = color;
+            ApplySlicedSprite(image);
             return image;
+        }
+
+        private static void ApplySlicedSprite(Image image)
+        {
+            var sprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/UISprite.psd");
+            if (sprite == null)
+                return;
+
+            image.sprite = sprite;
+            image.type = Image.Type.Sliced;
         }
 
         private static CanvasGroup AddRootCanvasGroup(RectTransform root)
@@ -373,8 +385,6 @@ namespace PicoBridge.Editor
             var serialized = new SerializedObject(controller);
             serialized.FindProperty("view").objectReferenceValue = view;
             serialized.FindProperty("manager").objectReferenceValue = manager;
-            serialized.FindProperty("rebuildCompactLayoutOnStart").boolValue = false;
-            serialized.FindProperty("compactCanvasSize").vector2Value = CanvasSize;
             serialized.FindProperty("uiCollapsed").boolValue = false;
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }

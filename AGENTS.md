@@ -22,6 +22,7 @@
 ## Coding Conventions
 
 - Keep runtime scripts under `Assets/` and editor-only scripts inside an `Editor/` folder.
+- Build and update Unity UI hierarchy only through editor-only scene/template tools or manual scene edits; runtime scripts must not create, delete, rebuild, or auto-migrate UI hierarchy, so designers can adjust the scene UI by hand.
 - Preserve Unity `.meta` files when adding, moving, or deleting assets.
 - Prefer small, focused MonoBehaviours and utility classes.
 - Keep diffs small and avoid unrelated scene churn.
