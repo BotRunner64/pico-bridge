@@ -14,13 +14,19 @@ namespace PicoBridge.UI
         [SerializeField] private bool rebuildCompactLayoutOnStart = true;
         [SerializeField] private Vector2 compactCanvasSize = new Vector2(1120f, 860f);
         [SerializeField, Range(MinUiOpacity, 1f)] private float uiOpacity = 1f;
+        [SerializeField] private bool uiCollapsed;
 
         private float _refreshTimer;
         private bool _cameraPreviewRequested;
         private bool _layoutBuilt;
 
         private const float MinUiOpacity = 0.05f;
+        private static readonly Vector2 ExpandedAnchorMin = Vector2.zero;
+        private static readonly Vector2 ExpandedAnchorMax = Vector2.one;
+        private static readonly Vector2 CollapsedAnchor = Vector2.one;
+        private static readonly Vector2 CollapsedSize = new Vector2(58f, 58f);
         private static readonly Color PanelColor = new Color(0.035f, 0.041f, 0.052f, 0.94f);
+        private static readonly Color BadgeColor = new Color(0.12f, 0.14f, 0.17f, 0.96f);
         private static readonly Color PreviewEmptyColor = new Color(0f, 0f, 0f, 0.82f);
         private static readonly Color DisconnectedColor = new Color(0.95f, 0.22f, 0.22f, 1f);
         private static readonly Color ConnectingColor = new Color(1f, 0.69f, 0.18f, 1f);
@@ -59,6 +65,8 @@ namespace PicoBridge.UI
                 RebuildCompactLayout();
 
             ConfigureOpacityControl();
+            ConfigureCollapseControl();
+            ApplyCollapseState();
         }
 
         private void Start()
@@ -79,6 +87,8 @@ namespace PicoBridge.UI
         {
             if (view != null && view.uiOpacitySlider != null)
                 view.uiOpacitySlider.onValueChanged.RemoveListener(SetUiOpacity);
+            if (view != null && view.collapseButton != null)
+                view.collapseButton.onClick.RemoveListener(ToggleCollapsed);
         }
 
         private void Update()
@@ -215,7 +225,11 @@ namespace PicoBridge.UI
         {
             return view == null ||
                    view.rootCanvasGroup == null ||
+                   view.panelImage == null ||
+                   view.panelContentRoot == null ||
                    view.uiOpacitySlider == null ||
+                   view.collapseButton == null ||
+                   view.collapseButtonText == null ||
                    view.trackingSignalImages == null ||
                    view.trackingSignalImages.Length != TrackingSignals.Length ||
                    view.trackingSignalLabels == null ||
@@ -253,6 +267,41 @@ namespace PicoBridge.UI
                 view.rootCanvasGroup.alpha = uiOpacity;
         }
 
+        private void ConfigureCollapseControl()
+        {
+            if (view == null || view.collapseButton == null)
+                return;
+
+            view.collapseButton.onClick.RemoveListener(ToggleCollapsed);
+            view.collapseButton.onClick.AddListener(ToggleCollapsed);
+        }
+
+        private void ToggleCollapsed()
+        {
+            uiCollapsed = !uiCollapsed;
+            ApplyCollapseState();
+        }
+
+        private void ApplyCollapseState()
+        {
+            if (view == null)
+                return;
+
+            if (view.panelContentRoot != null)
+                view.panelContentRoot.gameObject.SetActive(!uiCollapsed);
+            if (view.collapseButtonText != null)
+                view.collapseButtonText.text = uiCollapsed ? "+" : "-";
+
+            var root = GetComponent<RectTransform>();
+            if (root == null)
+                return;
+
+            if (uiCollapsed)
+                SetCollapsedRect(root);
+            else
+                Stretch(root, 20f);
+        }
+
         private void ConfigureCanvas()
         {
             var canvas = GetComponentInParent<Canvas>();
@@ -279,14 +328,18 @@ namespace PicoBridge.UI
 
             Stretch(root, 20f);
 
-            var panelImage = GetOrAdd<Image>(gameObject);
-            panelImage.color = PanelColor;
-            panelImage.raycastTarget = true;
+            view.panelImage = GetOrAdd<Image>(gameObject);
+            view.panelImage.color = PanelColor;
+            view.panelImage.raycastTarget = true;
 
             view.rootCanvasGroup = GetOrAdd<CanvasGroup>(gameObject);
+            RemoveIfExists<VerticalLayoutGroup>(gameObject);
 
-            var layout = GetOrAdd<VerticalLayoutGroup>(gameObject);
-            layout.padding = new RectOffset(18, 18, 18, 18);
+            view.panelContentRoot = CreateRect("PanelContent", transform);
+            Stretch(view.panelContentRoot, 0f);
+
+            var layout = view.panelContentRoot.gameObject.AddComponent<VerticalLayoutGroup>();
+            layout.padding = new RectOffset(18, 72, 18, 18);
             layout.spacing = 14f;
             layout.childAlignment = TextAnchor.UpperLeft;
             layout.childControlHeight = true;
@@ -294,7 +347,7 @@ namespace PicoBridge.UI
             layout.childForceExpandHeight = false;
             layout.childForceExpandWidth = true;
 
-            var header = CreateRow("Connection", transform, 66f, 14f);
+            var header = CreateRow("Connection", view.panelContentRoot, 66f, 14f);
             var pill = CreateRect("ConnectionStatus", header);
             view.statusPillImage = AddImage(pill.gameObject, DisconnectedColor);
             AddLayoutElement(pill.gameObject, 210f, 54f, 0f, 0f);
@@ -305,12 +358,12 @@ namespace PicoBridge.UI
             view.endpointText.enableWordWrapping = false;
             AddLayoutElement(view.endpointText.gameObject, -1f, 54f, 1f, 0f);
 
-            var previewFrame = CreateRect("CameraPreview", transform);
+            var previewFrame = CreateRect("CameraPreview", view.panelContentRoot);
             AddLayoutElement(previewFrame.gameObject, -1f, 594f, 1f, 1f);
             view.cameraPreviewImage = previewFrame.gameObject.AddComponent<RawImage>();
             view.cameraPreviewImage.color = PreviewEmptyColor;
 
-            var footer = CreateColumn("Signals", transform, 8f);
+            var footer = CreateColumn("Signals", view.panelContentRoot, 8f);
             AddLayoutElement(footer.gameObject, -1f, 96f, 0f, 0f);
 
             var tracking = CreateRow("TrackingSignals", footer, 50f, 8f);
@@ -330,6 +383,8 @@ namespace PicoBridge.UI
             opacityLabel.enableWordWrapping = false;
             AddLayoutElement(opacityLabel.gameObject, 28f, 30f, 0f, 0f);
             view.uiOpacitySlider = CreateOpacitySlider(opacityControl);
+
+            CreateCollapseBadge(root);
         }
 
         private static void ClearChildren(Transform parent)
@@ -431,6 +486,28 @@ namespace PicoBridge.UI
             return slider;
         }
 
+        private void CreateCollapseBadge(RectTransform parent)
+        {
+            var badge = CreateRect("CollapseBadge", parent);
+            badge.anchorMin = Vector2.one;
+            badge.anchorMax = Vector2.one;
+            badge.pivot = Vector2.one;
+            badge.anchoredPosition = new Vector2(-8f, -8f);
+            badge.sizeDelta = new Vector2(46f, 46f);
+
+            var image = AddImage(badge.gameObject, BadgeColor);
+            var button = badge.gameObject.AddComponent<Button>();
+            button.targetGraphic = image;
+
+            var layout = AddLayoutElement(badge.gameObject, 46f, 46f, 0f, 0f);
+            layout.ignoreLayout = true;
+
+            view.collapseButton = button;
+            view.collapseButtonText = CreateText("Label", badge, "-", 28, FontStyles.Bold, TextAlignmentOptions.Center, Color.white);
+            view.collapseButtonText.enableWordWrapping = false;
+            Stretch(view.collapseButtonText.rectTransform, 0f);
+        }
+
         private static TMP_Text CreateText(string name, Transform parent, string text, int fontSize, FontStyles style, TextAlignmentOptions alignment, Color color)
         {
             var rect = CreateRect(name, parent);
@@ -486,12 +563,37 @@ namespace PicoBridge.UI
             return component;
         }
 
+        private static void RemoveIfExists<T>(GameObject target) where T : Component
+        {
+            var component = target.GetComponent<T>();
+            if (component == null)
+                return;
+
+            if (component is Behaviour behaviour)
+                behaviour.enabled = false;
+
+            if (Application.isPlaying)
+                Destroy(component);
+            else
+                DestroyImmediate(component);
+        }
+
         private static void Stretch(RectTransform rectTransform, float inset)
         {
-            rectTransform.anchorMin = Vector2.zero;
-            rectTransform.anchorMax = Vector2.one;
+            rectTransform.anchorMin = ExpandedAnchorMin;
+            rectTransform.anchorMax = ExpandedAnchorMax;
+            rectTransform.pivot = new Vector2(0.5f, 0.5f);
             rectTransform.offsetMin = new Vector2(inset, inset);
             rectTransform.offsetMax = new Vector2(-inset, -inset);
+        }
+
+        private static void SetCollapsedRect(RectTransform rectTransform)
+        {
+            rectTransform.anchorMin = CollapsedAnchor;
+            rectTransform.anchorMax = CollapsedAnchor;
+            rectTransform.pivot = CollapsedAnchor;
+            rectTransform.anchoredPosition = new Vector2(-20f, -20f);
+            rectTransform.sizeDelta = CollapsedSize;
         }
     }
 }

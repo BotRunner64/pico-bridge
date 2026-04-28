@@ -8,6 +8,8 @@ namespace PicoBridge.UI
     {
         [Header("Root")]
         public CanvasGroup rootCanvasGroup;
+        public Image panelImage;
+        public RectTransform panelContentRoot;
 
         [Header("Connection")]
         public Image statusPillImage;
@@ -24,5 +26,7 @@ namespace PicoBridge.UI
 
         [Header("Controls")]
         public Slider uiOpacitySlider;
+        public Button collapseButton;
+        public TMP_Text collapseButtonText;
     }
 }

@@ -19,6 +19,7 @@ namespace PicoBridge.Editor
         private const float MinUiOpacity = 0.05f;
         private static readonly Vector2 CanvasSize = new Vector2(1120f, 860f);
         private static readonly Color PanelColor = new Color(0.035f, 0.041f, 0.052f, 0.94f);
+        private static readonly Color BadgeColor = new Color(0.12f, 0.14f, 0.17f, 0.96f);
         private static readonly Color PreviewEmptyColor = new Color(0f, 0f, 0f, 0.82f);
         private static readonly Color DisconnectedColor = new Color(0.95f, 0.22f, 0.22f, 1f);
         private static readonly Color SignalInactiveColor = new Color(0.24f, 0.27f, 0.31f, 1f);
@@ -68,22 +69,27 @@ namespace PicoBridge.Editor
 
             var root = CreateRect(TemplateName, canvas.transform);
             SetStretch(root, 20f);
-            AddImage(root.gameObject, PanelColor);
+            var panelImage = AddImage(root.gameObject, PanelColor);
             var rootCanvasGroup = AddRootCanvasGroup(root);
-            var rootLayout = AddVerticalLayout(root.gameObject, 18, 18, 18, 18, 14f);
-            rootLayout.childControlHeight = true;
-            rootLayout.childControlWidth = true;
-            rootLayout.childForceExpandHeight = false;
-            rootLayout.childForceExpandWidth = true;
 
             var view = root.gameObject.AddComponent<PicoBridgePanelView>();
             view.rootCanvasGroup = rootCanvasGroup;
+            view.panelImage = panelImage;
             var controller = root.gameObject.AddComponent<PicoBridgePanelController>();
             AssignControllerReferences(controller, view, Object.FindObjectOfType<PicoBridgeManager>());
 
-            BuildHeader(root, view);
-            BuildPreview(root, view);
-            BuildFooter(root, view);
+            view.panelContentRoot = CreateRect("PanelContent", root);
+            SetStretch(view.panelContentRoot, 0f);
+            var contentLayout = AddVerticalLayout(view.panelContentRoot.gameObject, 18, 72, 18, 18, 14f);
+            contentLayout.childControlHeight = true;
+            contentLayout.childControlWidth = true;
+            contentLayout.childForceExpandHeight = false;
+            contentLayout.childForceExpandWidth = true;
+
+            BuildHeader(view.panelContentRoot, view);
+            BuildPreview(view.panelContentRoot, view);
+            BuildFooter(view.panelContentRoot, view);
+            BuildCollapseBadge(root, view);
             SetLayerRecursively(root.gameObject, LayerMask.NameToLayer("UI"));
 
             Selection.activeGameObject = root.gameObject;
@@ -173,6 +179,28 @@ namespace PicoBridge.Editor
             opacityLabel.enableWordWrapping = false;
             AddLayoutElement(opacityLabel.gameObject, 28f, 30f, 0f, 0f);
             view.uiOpacitySlider = CreateOpacitySlider(opacityControl);
+        }
+
+        private static void BuildCollapseBadge(RectTransform parent, PicoBridgePanelView view)
+        {
+            var badge = CreateRect("CollapseBadge", parent);
+            badge.anchorMin = Vector2.one;
+            badge.anchorMax = Vector2.one;
+            badge.pivot = Vector2.one;
+            badge.anchoredPosition = new Vector2(-8f, -8f);
+            badge.sizeDelta = new Vector2(46f, 46f);
+
+            var image = AddImage(badge.gameObject, BadgeColor);
+            var button = badge.gameObject.AddComponent<Button>();
+            button.targetGraphic = image;
+
+            var layout = AddLayoutElement(badge.gameObject, 46f, 46f, 0f, 0f);
+            layout.ignoreLayout = true;
+
+            view.collapseButton = button;
+            view.collapseButtonText = CreateText("Label", badge, "-", 28, FontStyles.Bold, TextAlignmentOptions.Center, Color.white);
+            view.collapseButtonText.enableWordWrapping = false;
+            SetStretch(view.collapseButtonText.rectTransform, 0f);
         }
 
         private static RectTransform CreateRow(string name, RectTransform parent, float height, float spacing)
@@ -347,6 +375,7 @@ namespace PicoBridge.Editor
             serialized.FindProperty("manager").objectReferenceValue = manager;
             serialized.FindProperty("rebuildCompactLayoutOnStart").boolValue = false;
             serialized.FindProperty("compactCanvasSize").vector2Value = CanvasSize;
+            serialized.FindProperty("uiCollapsed").boolValue = false;
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
     }
