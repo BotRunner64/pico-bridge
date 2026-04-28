@@ -83,6 +83,9 @@ namespace PicoBridge
         {
             ConfigurePassthroughRendering();
             ConfigureTrackingVisualGuards();
+#if UNITY_EDITOR
+            SuppressEditorOnlyControllerRenderers();
+#endif
             StartVideoSeeThroughBootstrap();
 
             if (autoDiscovery)
@@ -115,6 +118,10 @@ namespace PicoBridge
 
         private void Update()
         {
+#if UNITY_EDITOR
+            SuppressEditorOnlyControllerRenderers();
+#endif
+
             // Rate-limited tracking send
             _trackingTimer += Time.deltaTime;
             if (_trackingTimer >= _trackingInterval && IsConnected)
@@ -178,6 +185,26 @@ namespace PicoBridge
 
             guard.Configure(source);
         }
+
+#if UNITY_EDITOR
+        private void SuppressEditorOnlyControllerRenderers()
+        {
+            if (!hideTrackingVisualsWithoutSignal)
+                return;
+
+            foreach (var controller in FindObjectsOfType<ActionBasedController>(true))
+            {
+                if (controller == null)
+                    continue;
+
+                foreach (var rendererComponent in controller.GetComponentsInChildren<Renderer>(true))
+                {
+                    if (rendererComponent != null)
+                        rendererComponent.enabled = false;
+                }
+            }
+        }
+#endif
 
         private void OnServerDiscovered(string ip, int port)
         {
