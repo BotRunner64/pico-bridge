@@ -18,9 +18,9 @@ namespace PicoBridge.Editor
         private const string PrefabName = "PicoBridgePanel";
         private const string PrefabFolderPath = "Assets/Prefabs/PicoBridge";
         private const string PanelPrefabPath = PrefabFolderPath + "/PicoBridgePanel.prefab";
+        private const string CollapseIconPath = "Assets/Samples/XR Interaction Toolkit/2.6.4/Starter Assets/DemoSceneAssets/Sprites/Forward.png";
 
         private const float MinUiOpacity = 0.05f;
-        private const string CollapseExpandedIcon = "▼";
         private const string EndpointPlaceholder = "Endpoint waiting";
         private static readonly Vector2 CanvasSize = new Vector2(1120f, 860f);
         private static readonly Color PanelColor = new Color(0.055f, 0.066f, 0.073f, 0.94f);
@@ -284,9 +284,7 @@ namespace PicoBridge.Editor
             layout.ignoreLayout = true;
 
             view.collapseButton = button;
-            view.collapseButtonText = CreateText("Label", badge, CollapseExpandedIcon, 24, FontStyles.Bold, TextAlignmentOptions.Center, TextColor);
-            view.collapseButtonText.enableWordWrapping = false;
-            SetStretch(view.collapseButtonText.rectTransform, 0f);
+            view.collapseButtonIcon = CreateCollapseIcon(badge);
         }
 
         private static RectTransform CreateRow(string name, RectTransform parent, float height, float spacing)
@@ -413,6 +411,24 @@ namespace PicoBridge.Editor
             var image = target.AddComponent<Image>();
             image.color = color;
             ApplySlicedSprite(image);
+            return image;
+        }
+
+        private static Image CreateCollapseIcon(RectTransform parent)
+        {
+            var icon = CreateRect("Icon", parent);
+            icon.anchorMin = new Vector2(0.5f, 0.5f);
+            icon.anchorMax = new Vector2(0.5f, 0.5f);
+            icon.pivot = new Vector2(0.5f, 0.5f);
+            icon.anchoredPosition = Vector2.zero;
+            icon.sizeDelta = new Vector2(20f, 20f);
+            icon.localRotation = Quaternion.Euler(0f, 0f, -90f);
+
+            var image = icon.gameObject.AddComponent<Image>();
+            image.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(CollapseIconPath);
+            image.color = TextColor;
+            image.preserveAspect = true;
+            image.raycastTarget = false;
             return image;
         }
 

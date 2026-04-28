@@ -28,6 +28,6 @@ namespace PicoBridge.UI
         [Header("Controls")]
         public Slider uiOpacitySlider;
         public Button collapseButton;
-        public TMP_Text collapseButtonText;
+        public Image collapseButtonIcon;
     }
 }

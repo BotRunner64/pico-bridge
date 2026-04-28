@@ -23,8 +23,8 @@ namespace PicoBridge.UI
         private Vector2 _expandedAnchoredPosition;
 
         private const float MinUiOpacity = 0.05f;
-        private const string CollapseExpandedIcon = "▼";
-        private const string CollapseCollapsedIcon = "▲";
+        private const float CollapseExpandedRotationZ = -90f;
+        private const float CollapseCollapsedRotationZ = 90f;
         private static readonly Vector2 CollapsedAnchor = new Vector2(0.5f, 0f);
         private static readonly Vector2 CollapsedSize = new Vector2(64f, 44f);
         private static readonly Vector2 CompactPanelAnchor = new Vector2(0.5f, 0f);
@@ -287,8 +287,11 @@ namespace PicoBridge.UI
                 view.panelContentRoot.gameObject.SetActive(!uiCollapsed);
             if (view.panelImage != null)
                 view.panelImage.enabled = !uiCollapsed;
-            if (view.collapseButtonText != null)
-                view.collapseButtonText.text = uiCollapsed ? CollapseCollapsedIcon : CollapseExpandedIcon;
+            if (view.collapseButtonIcon != null)
+            {
+                float rotationZ = uiCollapsed ? CollapseCollapsedRotationZ : CollapseExpandedRotationZ;
+                view.collapseButtonIcon.rectTransform.localRotation = Quaternion.Euler(0f, 0f, rotationZ);
+            }
 
             var root = GetComponent<RectTransform>();
             if (root == null)
