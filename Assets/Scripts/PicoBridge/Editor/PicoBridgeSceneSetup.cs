@@ -60,6 +60,8 @@ namespace PicoBridge.Editor
             if (root.GetComponent<PicoBridgeUI>() == null)
                 Undo.AddComponent<PicoBridgeUI>(root);
 
+            PicoBridgeSceneUiTemplate.InstallPanelPrefabInScene(EditorSceneManager.GetActiveScene(), saveScene: false);
+
             Selection.activeGameObject = root;
             EditorSceneManager.MarkSceneDirty(root.scene);
 

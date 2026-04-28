@@ -44,18 +44,6 @@ namespace PicoBridge.Editor
             "MOTION"
         };
 
-        [MenuItem("PicoBridge/Rebuild Scene UI Template")]
-        public static void RebuildOpenSceneUiTemplate()
-        {
-            RebuildSceneUiTemplate(EditorSceneManager.GetActiveScene(), saveScene: false);
-        }
-
-        [MenuItem("PicoBridge/Install Panel Prefab In Scene")]
-        public static void InstallPanelPrefabInOpenScene()
-        {
-            RebuildSceneUiTemplate(EditorSceneManager.GetActiveScene(), saveScene: false);
-        }
-
         [MenuItem("PicoBridge/Rebuild Panel Prefab")]
         public static void RebuildPanelPrefabMenu()
         {
@@ -65,7 +53,7 @@ namespace PicoBridge.Editor
         public static void RebuildSampleSceneUiTemplate()
         {
             var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
-            RebuildSceneUiTemplate(scene, saveScene: true);
+            InstallPanelPrefabInScene(scene, saveScene: true);
         }
 
         public static void RebuildPanelPrefab()
@@ -81,7 +69,7 @@ namespace PicoBridge.Editor
             Debug.Log($"[PicoBridge] Panel prefab rebuilt: {PanelPrefabPath}");
         }
 
-        private static void RebuildSceneUiTemplate(Scene scene, bool saveScene)
+        public static void InstallPanelPrefabInScene(Scene scene, bool saveScene)
         {
             var canvasObject = GameObject.Find(CanvasName);
             if (canvasObject == null)

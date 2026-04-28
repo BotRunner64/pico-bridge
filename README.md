@@ -34,8 +34,25 @@ pc_receiver/
 
 1. 用 Unity `2022.3.62f3` 打开本项目
 2. 确认 Android 平台启用 PICO Loader
-3. 菜单 `PicoBridge > Setup Scene`，或直接进入 Play 让脚本自动注入 `PicoBridge` 根对象
+3. 如当前场景未配置桥接对象，执行菜单 `PicoBridge > Setup Scene`
 4. 在头显内 UI 中连接 PC receiver
+
+### PicoBridge 菜单
+
+这些菜单是编辑器维护工具，不是每次开发前都必须执行。正常拉取仓库后，开发者可以直接打开项目继续开发。
+
+- `PicoBridge > Setup Scene`
+  - 用于新场景或场景配置损坏时的一键接入。
+  - 会创建或补齐 `PicoBridge` 根对象、`PicoBridgeManager`、`PicoBridgeUI`，并把 `Assets/Prefabs/PicoBridge/PicoBridgePanel.prefab` 安装到当前场景的 Controller Canvas。
+  - 已配置好的主场景不需要重复执行。
+- `PicoBridge > Rebuild Panel Prefab`
+  - 开发维护用，从 `PicoBridgeSceneUiTemplate.cs` 重新生成 `PicoBridgePanel.prefab`。
+  - 会覆盖 Prefab 内的手动 UI 调整；普通 UI 调整优先直接编辑 Prefab，不要随手执行这个菜单。
+- `PicoBridge > Validate Project Settings`
+  - 检查 Android / PICO 相关工程设置，例如 IL2CPP、最低 SDK、Internet 权限和包名。
+  - 换机器、升级 SDK、准备真机打包前建议执行；日常编码不需要。
+
+要保持“拉下仓库即可开发”，需要提交 UI Prefab 及其 `.meta`。如果主场景已经安装 Prefab 实例，也需要提交对应场景改动；保存场景前注意避免无关 Unity YAML churn。
 
 ### PC 端
 
