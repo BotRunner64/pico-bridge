@@ -12,3 +12,9 @@ def test_print_tracking_can_be_disabled():
 def test_advertise_ip_flag_is_parsed():
     args = build_parser().parse_args(["--advertise-ip", "192.168.1.10"])
     assert args.advertise_ip == "192.168.1.10"
+
+
+def test_realsense_video_source_is_parsed():
+    args = build_parser().parse_args(["--video", "realsense", "--camera-device", "RS123"])
+    assert args.video == "realsense"
+    assert args.camera_device == "RS123"

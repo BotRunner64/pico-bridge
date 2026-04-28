@@ -58,4 +58,15 @@ python bridge.py --video test-pattern
 python bridge.py --video camera --camera-device /dev/video0
 ```
 
+Intel RealSense 摄像头使用 `realsense` 源，只读取 RGB color stream。安装项目依赖后启动：
 
+```bash
+pip install -e .
+python bridge.py --video realsense
+```
+
+如果有多台 RealSense，可用序列号指定设备：
+
+```bash
+python bridge.py --video realsense --camera-device 0123456789
+```

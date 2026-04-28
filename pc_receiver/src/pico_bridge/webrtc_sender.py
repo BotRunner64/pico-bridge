@@ -84,6 +84,42 @@ class CameraVideoTrack(_VideoStreamTrackBase):
         raise RuntimeError("camera stream ended")
 
 
+class RealSenseVideoTrack(_VideoStreamTrackBase):
+    """aiortc-compatible RealSense color track backed by pyrealsense2."""
+
+    kind = "video"
+
+    def __init__(self, device: str | None, width: int, height: int, fps: int):
+        super().__init__()
+        self.width = width
+        self.height = height
+        self.fps = max(1, fps)
+        self._pipeline = _open_realsense(device, width, height, self.fps)
+        self._frame_index = 0
+        self._time_base = Fraction(1, 90_000)
+        self._pts_step = 90_000 // self.fps
+
+    async def recv(self) -> av.VideoFrame:
+        frame = await asyncio.to_thread(self._read_frame)
+        video_frame = av.VideoFrame.from_ndarray(frame, format="rgb24")
+        video_frame = video_frame.reformat(width=self.width, height=self.height, format="yuv420p")
+        video_frame.pts = self._frame_index * self._pts_step
+        video_frame.time_base = self._time_base
+        self._frame_index += 1
+        return video_frame
+
+    def stop(self) -> None:
+        super().stop()
+        _close_realsense(self._pipeline)
+
+    def _read_frame(self) -> np.ndarray:
+        frames = self._pipeline.wait_for_frames()
+        color_frame = frames.get_color_frame()
+        if not color_frame:
+            raise RuntimeError("RealSense color stream produced no frame")
+        return np.asanyarray(color_frame.get_data()).copy()
+
+
 def _open_camera(device: str | None, width: int, height: int, fps: int):
     if sys.platform.startswith("linux"):
         camera_device = device or "/dev/video0"
@@ -103,11 +139,37 @@ def _open_camera(device: str | None, width: int, height: int, fps: int):
     raise RuntimeError(f"Unsupported camera platform: {sys.platform}")
 
 
+def _open_realsense(device: str | None, width: int, height: int, fps: int):
+    try:
+        import pyrealsense2 as rs
+    except ImportError as exc:
+        raise RuntimeError(
+            "RealSense video source requires pyrealsense2. "
+            "Install project dependencies with `pip install -e .` or install `pyrealsense2` directly."
+        ) from exc
+
+    pipeline = rs.pipeline()
+    config = rs.config()
+    if device:
+        config.enable_device(device)
+    config.enable_stream(rs.stream.color, width, height, rs.format.rgb8, fps)
+    log.info("Opening RealSense color stream %s (%dx%d @%dfps)", device or "default", width, height, fps)
+    pipeline.start(config)
+    return pipeline
+
+
 def _close_container(container: Any) -> None:
     try:
         container.close()
     except Exception as exc:  # pragma: no cover - defensive around native camera libs
         log.debug("Ignoring camera close error: %s", exc)
+
+
+def _close_realsense(pipeline: Any) -> None:
+    try:
+        pipeline.stop()
+    except Exception as exc:  # pragma: no cover - defensive around native camera libs
+        log.debug("Ignoring RealSense close error: %s", exc)
 
 
 def _make_rgb_test_frame(width: int, height: int, frame_index: int) -> np.ndarray:
@@ -143,7 +205,7 @@ class WebRtcVideoSender:
         await self.stop()
         if req.codec != "webrtc":
             raise ValueError(f"WebRtcVideoSender requires codec=webrtc, got {req.codec!r}")
-        if self._source not in ("test-pattern", "camera"):
+        if self._source not in ("test-pattern", "camera", "realsense"):
             raise ValueError(f"unsupported WebRTC video source: {self._source!r}")
 
         from aiortc import RTCPeerConnection
@@ -176,6 +238,8 @@ class WebRtcVideoSender:
     def _create_track(self, req: CameraRequest) -> Any:
         if self._source == "camera":
             return CameraVideoTrack(self._camera_device, req.width, req.height, req.fps)
+        if self._source == "realsense":
+            return RealSenseVideoTrack(self._camera_device, req.width, req.height, req.fps)
         return TestPatternTrack(req.width, req.height, req.fps)
 
     async def handle_answer(self, value: Any) -> None:

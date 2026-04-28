@@ -159,14 +159,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--video",
-        choices=["disabled", "test-pattern", "camera"],
+        choices=["disabled", "test-pattern", "camera", "realsense"],
         default="disabled",
-        help="Video mode: disabled, test-pattern (ffmpeg testsrc), or camera (webcam)",
+        help="Video mode: disabled, test-pattern, camera (webcam), or realsense (RGB color stream)",
     )
     parser.add_argument(
         "--camera-device",
         default=None,
-        help="Camera device path/name for --video=camera (e.g. /dev/video0)",
+        help="Camera device path/name for --video=camera, or RealSense serial for --video=realsense",
     )
     parser.add_argument(
         "--no-discovery",
