@@ -3415,6 +3415,7 @@ MonoBehaviour:
   - {fileID: 7538353053269122503}
   - {fileID: 7863258646315645167}
   - {fileID: 4647638305925708206}
+  cameraPreviewRoot: {fileID: 8400768957704265841}
   cameraPreviewImage: {fileID: 8569110884047374282}
   cameraStatusText: {fileID: 8694618583449011783}
   uiOpacitySlider: {fileID: 8603936161717196024}

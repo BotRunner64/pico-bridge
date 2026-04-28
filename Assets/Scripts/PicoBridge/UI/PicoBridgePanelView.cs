@@ -21,6 +21,7 @@ namespace PicoBridge.UI
         public TMP_Text[] trackingSignalLabels;
 
         [Header("Camera")]
+        public RectTransform cameraPreviewRoot;
         public RawImage cameraPreviewImage;
         public TMP_Text cameraStatusText;
 

@@ -20,6 +20,7 @@ namespace PicoBridge.Camera
         public string Status => _status;
         public int FrameCount => _frameCount;
         public bool IsActive => _peer != null;
+        public bool HasVideoSignal => _texture != null && _frameCount > 0;
 
         public void StartPreview(PicoTcpClient tcp, int width, int height, int fps, int bitrate)
         {
@@ -131,6 +132,12 @@ namespace PicoBridge.Camera
             _peer.OnConnectionStateChange = state =>
             {
                 _status = $"WebRTC {state}";
+                if (state == RTCPeerConnectionState.Failed ||
+                    state == RTCPeerConnectionState.Closed)
+                {
+                    ClearVideoSignal();
+                }
+
                 Debug.Log($"[WebRtcCameraReceiver] Connection state: {state}");
             };
 
@@ -165,6 +172,12 @@ namespace PicoBridge.Camera
                 sdpMLineIndex = ExtractNullableInt(json, "sdpMLineIndex")
             };
             _peer.AddIceCandidate(new RTCIceCandidate(init));
+        }
+
+        private void ClearVideoSignal()
+        {
+            _texture = null;
+            _frameCount = 0;
         }
 
         private void EnsureWebRtcUpdateLoop()

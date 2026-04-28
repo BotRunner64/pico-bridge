@@ -14,6 +14,7 @@ namespace PicoBridge.UI
 
         private float _refreshTimer;
         private bool _cameraPreviewRequested;
+        private bool _cameraSignalVisible;
         private bool _hasExpandedRect;
         private Vector2 _expandedAnchorMin;
         private Vector2 _expandedAnchorMax;
@@ -26,6 +27,9 @@ namespace PicoBridge.UI
         private const string CollapseCollapsedIcon = "▲";
         private static readonly Vector2 CollapsedAnchor = new Vector2(0.5f, 0f);
         private static readonly Vector2 CollapsedSize = new Vector2(64f, 44f);
+        private static readonly Vector2 CompactPanelAnchor = new Vector2(0.5f, 0f);
+        private static readonly Vector2 CompactPanelSize = new Vector2(860f, 310f);
+        private static readonly Vector2 CompactPanelPosition = new Vector2(0f, 20f);
         private static readonly Color PreviewEmptyColor = new Color(0.018f, 0.023f, 0.026f, 0.72f);
         private static readonly Color DisconnectedColor = new Color(0.88f, 0.22f, 0.29f, 1f);
         private static readonly Color ConnectingColor = new Color(0.96f, 0.63f, 0.16f, 1f);
@@ -176,7 +180,17 @@ namespace PicoBridge.UI
         {
             bool connected = manager != null && manager.IsConnected;
             var camera = manager != null ? manager.WebRtcCamera : null;
-            var texture = connected && camera != null ? camera.Texture : null;
+            bool hasSignal = connected && camera != null && camera.HasVideoSignal;
+            var texture = hasSignal ? camera.Texture : null;
+            var previewRoot = ResolveCameraPreviewRoot();
+
+            if (previewRoot != null && previewRoot.gameObject.activeSelf != hasSignal)
+                previewRoot.gameObject.SetActive(hasSignal);
+            if (_cameraSignalVisible != hasSignal)
+            {
+                _cameraSignalVisible = hasSignal;
+                ApplyCollapseState();
+            }
 
             if (view.cameraPreviewImage != null)
             {
@@ -188,11 +202,31 @@ namespace PicoBridge.UI
             {
                 if (!connected)
                     view.cameraStatusText.text = "Camera idle";
-                else if (texture != null)
+                else if (hasSignal)
                     view.cameraStatusText.text = $"Camera live  {camera.FrameCount}";
                 else
                     view.cameraStatusText.text = camera != null ? camera.Status : "Camera waiting";
             }
+        }
+
+        private RectTransform ResolveCameraPreviewRoot()
+        {
+            if (view == null)
+                return null;
+            if (view.cameraPreviewRoot != null)
+                return view.cameraPreviewRoot;
+            if (view.cameraPreviewImage == null)
+                return null;
+
+            var imageTransform = view.cameraPreviewImage.rectTransform;
+            if (imageTransform.parent is RectTransform previewRoot)
+            {
+                view.cameraPreviewRoot = previewRoot;
+                return previewRoot;
+            }
+
+            view.cameraPreviewRoot = imageTransform;
+            return view.cameraPreviewRoot;
         }
 
         private void ConfigureOpacityControl()
@@ -262,8 +296,10 @@ namespace PicoBridge.UI
 
             if (uiCollapsed)
                 SetCollapsedRect(root);
-            else
+            else if (_cameraSignalVisible)
                 RestoreExpandedRect(root);
+            else
+                SetCompactRect(root);
         }
 
         private void CaptureExpandedRect()
@@ -299,6 +335,15 @@ namespace PicoBridge.UI
             rectTransform.pivot = CollapsedAnchor;
             rectTransform.anchoredPosition = new Vector2(0f, 20f);
             rectTransform.sizeDelta = CollapsedSize;
+        }
+
+        private static void SetCompactRect(RectTransform rectTransform)
+        {
+            rectTransform.anchorMin = CompactPanelAnchor;
+            rectTransform.anchorMax = CompactPanelAnchor;
+            rectTransform.pivot = CompactPanelAnchor;
+            rectTransform.anchoredPosition = CompactPanelPosition;
+            rectTransform.sizeDelta = CompactPanelSize;
         }
     }
 }

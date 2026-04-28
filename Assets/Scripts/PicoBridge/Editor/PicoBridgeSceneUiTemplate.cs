@@ -227,6 +227,7 @@ namespace PicoBridge.Editor
         private static void BuildPreview(RectTransform parent, PicoBridgePanelView view)
         {
             var preview = CreateRect("CameraPreview", parent);
+            view.cameraPreviewRoot = preview;
             var previewImage = AddImage(preview.gameObject, SurfaceColor);
             AddOutline(previewImage, StrokeColor, new Vector2(1.5f, -1.5f));
             AddLayoutElement(preview.gameObject, -1f, 540f, 1f, 1f);
