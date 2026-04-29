@@ -36,6 +36,16 @@ _HAND_BONES = [
     (5, 9), (9, 13), (13, 17),
 ]
 
+# PICO BodyTrackerRole topology, indexed by BodyTrackerRole enum:
+# Pelvis, hips, spine chain, legs, neck/head, collars, arms, hands.
+_BODY_BONES = [
+    (0, 1), (1, 4), (4, 7), (7, 10),
+    (0, 2), (2, 5), (5, 8), (8, 11),
+    (0, 3), (3, 6), (6, 9), (9, 12), (12, 15),
+    (12, 13), (13, 16), (16, 18), (18, 20), (20, 22),
+    (12, 14), (14, 17), (17, 19), (19, 21), (21, 23),
+]
+
 # Track which signals are active in the current frame
 _signals: dict[str, bool] = {}
 
@@ -291,15 +301,31 @@ def _log_body(body: dict) -> None:
     if not joints:
         _clear_path("world/body")
         return
-    pts = []
+
+    pts_by_index: list[list[float] | None] = []
     for j in joints:
         parsed = _parse_pose(j.get("p", ""))
-        if parsed:
-            pts.append(parsed[0])
+        pts_by_index.append(parsed[0] if parsed else None)
+
+    pts = [p for p in pts_by_index if p is not None]
     if pts:
         rr.log("world/body/pts", rr.Points3D(
             np.array(pts, dtype=np.float32), colors=[_BODY_COLOR], radii=[0.025],
         ))
+        bones = [
+            [pts_by_index[a], pts_by_index[b]]
+            for a, b in _BODY_BONES
+            if a < len(pts_by_index)
+            and b < len(pts_by_index)
+            and pts_by_index[a] is not None
+            and pts_by_index[b] is not None
+        ]
+        if bones:
+            rr.log("world/body/bones", rr.LineStrips3D(
+                bones, colors=[_BODY_COLOR], radii=[0.006],
+            ))
+        else:
+            rr.log("world/body/bones", rr.Clear(recursive=False))
     else:
         _clear_path("world/body")
 

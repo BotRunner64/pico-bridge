@@ -116,3 +116,50 @@ def test_log_body_clears_when_all_joint_poses_are_invalid(visualiser_module):
     visualiser_module._log_body({"len": 1, "joints": [{"p": "bad"}]})
 
     assert calls == [("world/body", ("clear", True))]
+
+
+def test_log_body_draws_topology_lines_for_valid_joints(visualiser_module):
+    calls: list[tuple[str, object]] = []
+
+    class FakeNumpy:
+        float32 = "float32"
+
+        @staticmethod
+        def array(value: object, dtype: object = None) -> object:
+            return value
+
+    class FakeRerun:
+        @staticmethod
+        def Clear(*, recursive: bool):
+            return ("clear", recursive)
+
+        @staticmethod
+        def Points3D(points: object, **kwargs: object):
+            return ("points", points, kwargs)
+
+        @staticmethod
+        def LineStrips3D(lines: object, **kwargs: object):
+            return ("lines", lines, kwargs)
+
+        @staticmethod
+        def log(path: str, value: object) -> None:
+            calls.append((path, value))
+
+    visualiser_module.np = FakeNumpy()
+    visualiser_module.rr = FakeRerun()
+    visualiser_module._log_body({
+        "len": 3,
+        "joints": [
+            {"p": "0,1,0,0,0,0,1"},
+            {"p": "-1,0,0,0,0,0,1"},
+            {"p": "1,0,0,0,0,0,1"},
+        ],
+    })
+
+    assert calls[0][0] == "world/body/pts"
+    assert calls[1][0] == "world/body/bones"
+    assert calls[1][1][0] == "lines"
+    assert calls[1][1][1] == [
+        [[0.0, 1.0, 0.0], [-1.0, 0.0, 0.0]],
+        [[0.0, 1.0, 0.0], [1.0, 0.0, 0.0]],
+    ]

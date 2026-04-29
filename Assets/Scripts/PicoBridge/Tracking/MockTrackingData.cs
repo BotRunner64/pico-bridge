@@ -142,30 +142,30 @@ namespace PicoBridge.Tracking
         {
             Vector3[] joints =
             {
-                new Vector3(0.00f, 0.95f, -0.08f),
-                new Vector3(0.00f, 1.12f, -0.08f),
-                new Vector3(0.00f, 1.30f, -0.08f),
-                new Vector3(0.00f, 1.48f, -0.08f),
-                new Vector3(0.00f, 1.62f, -0.08f),
-                new Vector3(-0.18f, 1.42f, -0.08f),
-                new Vector3(-0.36f, 1.25f, -0.10f),
-                new Vector3(-0.42f, 1.05f, -0.12f),
-                new Vector3(0.18f, 1.42f, -0.08f),
-                new Vector3(0.36f, 1.25f, -0.10f),
-                new Vector3(0.42f, 1.05f, -0.12f),
-                new Vector3(-0.10f, 0.92f, -0.08f),
-                new Vector3(-0.12f, 0.55f, -0.06f),
-                new Vector3(-0.12f, 0.18f, -0.03f),
-                new Vector3(-0.12f, 0.05f, -0.17f),
-                new Vector3(0.10f, 0.92f, -0.08f),
-                new Vector3(0.12f, 0.55f, -0.06f),
-                new Vector3(0.12f, 0.18f, -0.03f),
-                new Vector3(0.12f, 0.05f, -0.17f),
-                new Vector3(-0.23f, 1.38f, -0.07f),
-                new Vector3(0.23f, 1.38f, -0.07f),
-                new Vector3(-0.08f, 1.57f, -0.05f),
-                new Vector3(0.08f, 1.57f, -0.05f),
-                new Vector3(0.00f, 1.72f, -0.07f),
+                new Vector3(0.00f, 0.95f, -0.08f),  // Pelvis
+                new Vector3(-0.10f, 0.92f, -0.08f), // LEFT_HIP
+                new Vector3(0.10f, 0.92f, -0.08f),  // RIGHT_HIP
+                new Vector3(0.00f, 1.12f, -0.08f),  // SPINE1
+                new Vector3(-0.12f, 0.55f, -0.06f), // LEFT_KNEE
+                new Vector3(0.12f, 0.55f, -0.06f),  // RIGHT_KNEE
+                new Vector3(0.00f, 1.30f, -0.08f),  // SPINE2
+                new Vector3(-0.12f, 0.18f, -0.03f), // LEFT_ANKLE
+                new Vector3(0.12f, 0.18f, -0.03f),  // RIGHT_ANKLE
+                new Vector3(0.00f, 1.48f, -0.08f),  // SPINE3
+                new Vector3(-0.12f, 0.05f, -0.17f), // LEFT_FOOT
+                new Vector3(0.12f, 0.05f, -0.17f),  // RIGHT_FOOT
+                new Vector3(0.00f, 1.62f, -0.08f),  // NECK
+                new Vector3(-0.08f, 1.57f, -0.05f), // LEFT_COLLAR
+                new Vector3(0.08f, 1.57f, -0.05f),  // RIGHT_COLLAR
+                new Vector3(0.00f, 1.72f, -0.07f),  // HEAD
+                new Vector3(-0.18f, 1.42f, -0.08f), // LEFT_SHOULDER
+                new Vector3(0.18f, 1.42f, -0.08f),  // RIGHT_SHOULDER
+                new Vector3(-0.36f, 1.25f, -0.10f), // LEFT_ELBOW
+                new Vector3(0.36f, 1.25f, -0.10f),  // RIGHT_ELBOW
+                new Vector3(-0.42f, 1.05f, -0.12f), // LEFT_WRIST
+                new Vector3(0.42f, 1.05f, -0.12f),  // RIGHT_WRIST
+                new Vector3(-0.46f, 0.99f, -0.13f), // LEFT_HAND
+                new Vector3(0.46f, 0.99f, -0.13f),  // RIGHT_HAND
             };
 
             sb.Append(",\"Body\":{\"joints\":[");
