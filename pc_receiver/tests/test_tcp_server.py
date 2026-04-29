@@ -36,6 +36,20 @@ def test_tracking_payload_must_decode_to_object():
     assert calls == []
 
 
+def test_tracking_callback_error_does_not_escape_handler():
+    def raise_from_callback(_: dict[str, object]) -> None:
+        raise OverflowError("bad frame")
+
+    server = PicoBridgeServer(on_tracking=raise_from_callback)
+    writer = _FakeWriter("active")
+    server._writer = writer
+    server._connected = True
+
+    asyncio.run(server._handle_function(_function_packet({"timeStampNs": 1}), writer))
+
+    assert server.connected is True
+
+
 def test_new_client_replaces_stale_connection():
     async def run() -> None:
         server = PicoBridgeServer()
@@ -118,6 +132,26 @@ def test_stale_connection_packets_cannot_touch_active_connection():
             first_reader.feed_eof()
             await second_task
             await first_task
+
+    asyncio.run(run())
+
+
+def test_stop_closes_active_client():
+    async def run() -> None:
+        server = PicoBridgeServer()
+        reader = _FakeReader()
+        writer = _FakeWriter("active")
+        task = asyncio.create_task(server._handle_client(reader, writer))
+        await _wait_until(lambda: server.connected and server._writer is writer)
+
+        await server.stop()
+
+        assert writer.is_closing()
+        assert server.connected is False
+        assert server.device_sn == ""
+
+        reader.feed_eof()
+        await task
 
     asyncio.run(run())
 

@@ -25,27 +25,19 @@ def test_run_starts_visualiser_for_viz_connect(monkeypatch):
         close=lambda: calls.append(("close",)),
     )
 
-    class FakeServer:
+    class FakeBridge:
         def __init__(self, **kwargs):
             self.kwargs = kwargs
-            self.connected = False
-            self.device_sn = ""
+            self._stats = types.SimpleNamespace(connected=False, device_sn="")
 
-        async def start(self) -> None:
-            calls.append(("server_start", self.kwargs["on_tracking"] is not None))
+        def start(self) -> None:
+            calls.append(("bridge_start", self.kwargs["on_raw_tracking"] is not None))
 
-        async def stop(self) -> None:
-            calls.append(("server_stop",))
+        def close(self) -> None:
+            calls.append(("bridge_close",))
 
-    class FakeBroadcaster:
-        def __init__(self, **kwargs):
-            self.kwargs = kwargs
-
-        async def start(self) -> None:
-            calls.append(("broadcaster_start",))
-
-        async def stop(self) -> None:
-            calls.append(("broadcaster_stop",))
+        def stats(self):
+            return self._stats
 
     async def fake_sleep(_: float) -> None:
         raise asyncio.CancelledError
@@ -53,8 +45,7 @@ def test_run_starts_visualiser_for_viz_connect(monkeypatch):
     monkeypatch.delitem(sys.modules, "pico_bridge.visualiser", raising=False)
     monkeypatch.setitem(sys.modules, "pico_bridge.visualiser", fake_visualiser)
     monkeypatch.setattr(sys.modules["pico_bridge"], "visualiser", fake_visualiser, raising=False)
-    monkeypatch.setattr(cli, "PicoBridgeServer", FakeServer)
-    monkeypatch.setattr(cli, "UdpBroadcaster", FakeBroadcaster)
+    monkeypatch.setattr(cli, "PicoBridge", FakeBridge)
     monkeypatch.setattr(cli.asyncio, "sleep", fake_sleep)
 
     args = cli.build_parser().parse_args(
@@ -64,5 +55,6 @@ def test_run_starts_visualiser_for_viz_connect(monkeypatch):
     asyncio.run(cli._run(args))
 
     assert ("init", False, True, True) in calls
-    assert ("server_start", True) in calls
+    assert ("bridge_start", True) in calls
+    assert ("bridge_close",) in calls
     assert ("close",) in calls

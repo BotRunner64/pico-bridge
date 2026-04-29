@@ -75,9 +75,21 @@ class PicoBridgeServer:
         log.info("listening on %s:%d", self.host, self.port)
 
     async def stop(self) -> None:
-        if self._server:
-            self._server.close()
-            await self._server.wait_closed()
+        server = self._server
+        self._server = None
+        if server:
+            server.close()
+            await server.wait_closed()
+
+        writer: asyncio.StreamWriter | None = None
+        async with self._client_lock:
+            writer = self._writer
+            self._writer = None
+            self._connected = False
+            self._device_sn = ""
+
+        if writer is not None:
+            await self._close_writer(writer)
 
     async def send_function(self, name: str, value: Any) -> None:
         """Send a PC->VR function command."""
@@ -145,9 +157,15 @@ class PicoBridgeServer:
                     self._connected = False
                     self._writer = None
                     self._device_sn = ""
+            await self._close_writer(writer)
+            log.info("connection closed: %s", addr)
+
+    async def _close_writer(self, writer: asyncio.StreamWriter) -> None:
+        try:
             writer.close()
             await writer.wait_closed()
-            log.info("connection closed: %s", addr)
+        except (ConnectionResetError, BrokenPipeError, OSError) as exc:
+            log.debug("Ignoring client close error: %s", exc)
 
     def _is_active_writer(self, writer: asyncio.StreamWriter) -> bool:
         return self._writer is writer and self._connected and not writer.is_closing()
@@ -215,7 +233,10 @@ class PicoBridgeServer:
                 except (json.JSONDecodeError, TypeError, UnicodeDecodeError) as e:
                     log.warning("bad tracking payload: %s", e)
                     return
-                self._on_tracking(tracking_data)
+                try:
+                    self._on_tracking(tracking_data)
+                except Exception:
+                    log.exception("tracking callback failed; dropping frame")
         elif fn_name == "StartReceivePcCamera":
             self._handle_camera_start(value, writer)
         elif fn_name == "StopReceivePcCamera":
