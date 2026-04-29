@@ -21,6 +21,7 @@ namespace PicoBridge.Network
         private UdpClient _udpClient;
         private Thread _listenThread;
         private volatile bool _listening;
+        private int _listenGeneration;
         private readonly Queue<(string ip, int port)> _discoveredServers = new Queue<(string ip, int port)>();
         private readonly HashSet<string> _knownServers = new HashSet<string>();
 
@@ -32,22 +33,34 @@ namespace PicoBridge.Network
 
             try
             {
-                _udpClient = new UdpClient(DISCOVERY_PORT);
+                _udpClient = new UdpClient
+                {
+                    ExclusiveAddressUse = false
+                };
+                _udpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                _udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, DISCOVERY_PORT));
                 _listening = true;
-                _listenThread = new Thread(ListenLoop) { IsBackground = true };
+                int generation = Interlocked.Increment(ref _listenGeneration);
+                var client = _udpClient;
+                _listenThread = new Thread(() => ListenLoop(client, generation)) { IsBackground = true };
                 _listenThread.Start();
                 Debug.Log($"[PicoBridge] UDP discovery listening on port {DISCOVERY_PORT}");
             }
             catch (Exception e)
             {
+                try { _udpClient?.Close(); } catch { }
+                _udpClient = null;
+                _listening = false;
                 Debug.LogError($"[PicoBridge] UDP listen failed: {e.Message}");
             }
         }
 
         public void StopListening()
         {
+            Interlocked.Increment(ref _listenGeneration);
             _listening = false;
             _udpClient?.Close();
+            _udpClient = null;
         }
 
         public void ClearDiscovered()
@@ -77,16 +90,19 @@ namespace PicoBridge.Network
             StopListening();
         }
 
-        private void ListenLoop()
+        private void ListenLoop(UdpClient client, int generation)
         {
+            if (client == null)
+                return;
+
             var endPoint = new IPEndPoint(IPAddress.Any, DISCOVERY_PORT);
             var buffer = new ByteBuffer(1024);
 
-            while (_listening)
+            while (_listening && generation == Volatile.Read(ref _listenGeneration))
             {
                 try
                 {
-                    byte[] data = _udpClient.Receive(ref endPoint);
+                    byte[] data = client.Receive(ref endPoint);
                     // Parse using our protocol — expect CMD 0x7E with IP as payload
                     buffer.Clear();
                     buffer.WriteBytes(data, 0, data.Length);
@@ -111,6 +127,9 @@ namespace PicoBridge.Network
                     break;
                 }
             }
+
+            if (generation == Volatile.Read(ref _listenGeneration))
+                _listening = false;
         }
 
         private static bool TryParseDiscoveryPayload(byte[] payload, out string ip, out int port)

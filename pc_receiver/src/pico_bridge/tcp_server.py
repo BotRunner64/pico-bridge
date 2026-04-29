@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import ipaddress
+import inspect
 import logging
 from typing import Any, Callable
 
@@ -93,19 +94,12 @@ class PicoBridgeServer:
 
     async def send_function(self, name: str, value: Any) -> None:
         """Send a PC->VR function command."""
-        if not self._writer:
-            log.warning("send_function: no client connected")
-            return
         payload = json.dumps({"functionName": name, "value": value}).encode()
-        self._writer.write(pack(CMD.FROM_CONTROLLER_COMMON_FUNCTION, payload))
-        await self._writer.drain()
+        await self._send_packet(pack(CMD.FROM_CONTROLLER_COMMON_FUNCTION, payload), "send_function")
 
     async def send_custom(self, data: bytes) -> None:
         """Send a PC->VR custom binary packet."""
-        if not self._writer:
-            return
-        self._writer.write(pack(CMD.CUSTOM_TO_VR, data))
-        await self._writer.drain()
+        await self._send_packet(pack(CMD.CUSTOM_TO_VR, data), "send_custom")
 
     @property
     def connected(self) -> bool:
@@ -121,6 +115,7 @@ class PicoBridgeServer:
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
         addr = writer.get_extra_info("peername")
+        replaced_writer: asyncio.StreamWriter | None = None
         async with self._client_lock:
             if self._writer is not None and not self._writer.is_closing():
                 old_addr = self._writer.get_extra_info("peername")
@@ -132,12 +127,16 @@ class PicoBridgeServer:
                     self._writer.close()
                 except Exception:
                     pass
+                replaced_writer = self._writer
                 self._writer = None
                 self._connected = False
 
             self._writer = writer
             self._connected = True
             self._device_sn = ""
+
+        if replaced_writer is not None:
+            await self._notify_camera_stop()
 
         log.info("client connected: %s", addr)
         parser = PacketParser(accept_head=0x3F)
@@ -152,23 +151,69 @@ class PicoBridgeServer:
         except (ConnectionResetError, BrokenPipeError):
             log.info("client disconnected: %s", addr)
         finally:
+            should_stop_camera = False
             async with self._client_lock:
                 if self._writer is writer:
                     self._connected = False
                     self._writer = None
                     self._device_sn = ""
+                    should_stop_camera = True
+            if should_stop_camera:
+                await self._notify_camera_stop()
             await self._close_writer(writer)
             log.info("connection closed: %s", addr)
 
     async def _close_writer(self, writer: asyncio.StreamWriter) -> None:
         try:
             writer.close()
-            await writer.wait_closed()
+            await asyncio.wait_for(writer.wait_closed(), timeout=2.0)
+        except asyncio.TimeoutError:
+            log.debug("Timed out waiting for client close")
         except (ConnectionResetError, BrokenPipeError, OSError) as exc:
             log.debug("Ignoring client close error: %s", exc)
 
     def _is_active_writer(self, writer: asyncio.StreamWriter) -> bool:
         return self._writer is writer and self._connected and not writer.is_closing()
+
+    async def _send_packet(
+        self,
+        data: bytes,
+        label: str,
+        writer: asyncio.StreamWriter | None = None,
+    ) -> None:
+        writer = self._writer if writer is None else writer
+        if writer is None or not self._is_active_writer(writer):
+            log.warning("%s: no client connected", label)
+            return
+        try:
+            writer.write(data)
+            await writer.drain()
+        except (ConnectionResetError, BrokenPipeError, OSError) as exc:
+            log.info("%s failed; dropping client connection: %s", label, exc)
+            await self._drop_writer(writer)
+
+    async def _drop_writer(self, writer: asyncio.StreamWriter) -> None:
+        should_stop_camera = False
+        async with self._client_lock:
+            if self._writer is writer:
+                self._connected = False
+                self._writer = None
+                self._device_sn = ""
+                should_stop_camera = True
+
+        if should_stop_camera:
+            await self._notify_camera_stop()
+        await self._close_writer(writer)
+
+    async def _notify_camera_stop(self) -> None:
+        if self._on_camera_stop is None:
+            return
+        try:
+            result = self._on_camera_stop()
+            if inspect.isawaitable(result):
+                await result
+        except Exception:
+            log.exception("camera stop callback failed")
 
     async def _dispatch(self, pkt: Packet, writer: asyncio.StreamWriter) -> None:
         if pkt.cmd == CMD.CONNECT:
@@ -176,7 +221,7 @@ class PicoBridgeServer:
         elif pkt.cmd == CMD.SEND_VERSION:
             self._handle_version(pkt, writer)
         elif pkt.cmd == CMD.CLIENT_HEARTBEAT:
-            self._handle_heartbeat(pkt, writer)
+            await self._handle_heartbeat(pkt, writer)
         elif pkt.cmd == CMD.TO_CONTROLLER_FUNCTION:
             await self._handle_function(pkt, writer)
         elif pkt.cmd == CMD.CUSTOM_TO_PC:
@@ -198,11 +243,11 @@ class PicoBridgeServer:
         text = pkt.data.decode("utf-8", errors="replace")
         log.info("device version: %s", text)
 
-    def _handle_heartbeat(self, pkt: Packet, writer: asyncio.StreamWriter) -> None:
+    async def _handle_heartbeat(self, pkt: Packet, writer: asyncio.StreamWriter) -> None:
         if not self._is_active_writer(writer):
             return
         log.debug("heartbeat from %s", self._device_sn or "unknown")
-        writer.write(pack(CMD.CLIENT_HEARTBEAT))
+        await self._send_packet(pack(CMD.CLIENT_HEARTBEAT), "heartbeat", writer)
 
     async def _handle_function(self, pkt: Packet, writer: asyncio.StreamWriter) -> None:
         if not self._is_active_writer(writer):
@@ -240,8 +285,7 @@ class PicoBridgeServer:
         elif fn_name == "StartReceivePcCamera":
             self._handle_camera_start(value, writer)
         elif fn_name == "StopReceivePcCamera":
-            if self._on_camera_stop:
-                self._on_camera_stop()
+            await self._notify_camera_stop()
         else:
             log.info("function: %s", fn_name)
             if self._on_function:

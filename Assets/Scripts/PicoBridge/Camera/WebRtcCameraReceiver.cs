@@ -13,21 +13,52 @@ namespace PicoBridge.Camera
         private Texture _texture;
         private PicoTcpClient _tcp;
         private Coroutine _updateCoroutine;
+        private Coroutine _resetCoroutine;
         private string _status = "Idle";
         private int _frameCount;
+        private bool _ignorePeerStateChanges;
+        private float _previewStartedAt = -1f;
+        private float _disconnectedAt = -1f;
+        private float _lastFrameAt = -1f;
+        private float _lastFrameIntervalMs;
 
         public Texture Texture => _texture;
         public string Status => _status;
         public int FrameCount => _frameCount;
+        public float LastFrameIntervalMs => _lastFrameIntervalMs;
         public bool IsActive => _peer != null;
         public bool HasVideoSignal => _texture != null && _frameCount > 0;
+        public bool ShouldRetry
+        {
+            get
+            {
+                float now = Time.realtimeSinceStartup;
+                bool initialTimedOut = !HasVideoSignal && _previewStartedAt > 0f && now - _previewStartedAt >= InitialPreviewTimeout;
+                bool disconnectedTimedOut = _disconnectedAt > 0f && now - _disconnectedAt >= DisconnectedRetryTimeout;
+                return initialTimedOut || disconnectedTimedOut;
+            }
+        }
+
+        private const float InitialPreviewTimeout = 10f;
+        private const float DisconnectedRetryTimeout = 12f;
+        private const float SlowFrameIntervalMs = 120f;
 
         public void StartPreview(PicoTcpClient tcp, int width, int height, int fps, int bitrate)
         {
             StopPreview();
             _tcp = tcp;
+            if (_tcp == null || _tcp.State != SocketState.Working)
+            {
+                _status = "TCP disconnected";
+                return;
+            }
+
             _status = "Requesting WebRTC offer";
             _frameCount = 0;
+            _previewStartedAt = Time.realtimeSinceStartup;
+            _disconnectedAt = -1f;
+            _lastFrameAt = -1f;
+            _lastFrameIntervalMs = 0f;
             EnsureWebRtcUpdateLoop();
             string cameraJson = $"{{\"codec\":\"webrtc\",\"source\":\"test-pattern\",\"width\":{width},\"height\":{height},\"fps\":{fps},\"bitrate\":{bitrate}}}";
             _tcp.SendFunction("StartReceivePcCamera", cameraJson);
@@ -37,17 +68,46 @@ namespace PicoBridge.Camera
         public void StopPreview()
         {
             bool wasActive = _peer != null;
-            if (wasActive && _tcp != null)
+            if (wasActive && _tcp != null && _tcp.State == SocketState.Working)
                 _tcp.SendFunction("StopReceivePcCamera", "\"\"");
+
+            ResetPeer(clearSignal: true);
+            _status = "Idle";
+            _previewStartedAt = -1f;
+            _disconnectedAt = -1f;
+            _lastFrameAt = -1f;
+            _lastFrameIntervalMs = 0f;
+        }
+
+        private void ResetPeer(bool clearSignal)
+        {
+            if (_resetCoroutine != null)
+            {
+                StopCoroutine(_resetCoroutine);
+                _resetCoroutine = null;
+            }
 
             _videoTrack?.Dispose();
             _videoTrack = null;
-            _texture = null;
-            _peer?.Close();
-            _peer?.Dispose();
+            if (clearSignal)
+                _texture = null;
+            var peer = _peer;
             _peer = null;
-            _status = "Idle";
-            _frameCount = 0;
+            if (peer != null)
+            {
+                _ignorePeerStateChanges = true;
+                try
+                {
+                    peer.Close();
+                    peer.Dispose();
+                }
+                finally
+                {
+                    _ignorePeerStateChanges = false;
+                }
+            }
+            if (clearSignal)
+                _frameCount = 0;
         }
 
         public void HandleFunction(string functionName, string json)
@@ -61,6 +121,7 @@ namespace PicoBridge.Camera
         private IEnumerator HandleOffer(string json)
         {
             EnsureWebRtcUpdateLoop();
+            ResetPeer(clearSignal: false);
             CreatePeer();
             string sdp = ExtractString(json, "sdp");
             string type = ExtractString(json, "type");
@@ -131,11 +192,24 @@ namespace PicoBridge.Camera
 
             _peer.OnConnectionStateChange = state =>
             {
+                if (_ignorePeerStateChanges)
+                    return;
+
                 _status = $"WebRTC {state}";
+                if (state == RTCPeerConnectionState.Disconnected)
+                {
+                    if (_disconnectedAt < 0f)
+                        _disconnectedAt = Time.realtimeSinceStartup;
+                }
+                else
+                {
+                    _disconnectedAt = -1f;
+                }
+
                 if (state == RTCPeerConnectionState.Failed ||
                     state == RTCPeerConnectionState.Closed)
                 {
-                    ClearVideoSignal();
+                    SchedulePeerReset("Preview interrupted", clearSignal: false);
                 }
 
                 Debug.Log($"[WebRtcCameraReceiver] Connection state: {state}");
@@ -148,6 +222,15 @@ namespace PicoBridge.Camera
                     _videoTrack = track;
                     _videoTrack.OnVideoReceived += texture =>
                     {
+                        float now = Time.realtimeSinceStartup;
+                        if (_lastFrameAt > 0f)
+                        {
+                            _lastFrameIntervalMs = (now - _lastFrameAt) * 1000f;
+                            if (_lastFrameIntervalMs >= SlowFrameIntervalMs)
+                                Debug.LogWarning($"[WebRtcCameraReceiver] Slow video frame interval: {_lastFrameIntervalMs:0.0} ms");
+                        }
+                        _lastFrameAt = now;
+                        _disconnectedAt = -1f;
                         _texture = texture;
                         _frameCount++;
                         _status = "Preview active";
@@ -178,6 +261,22 @@ namespace PicoBridge.Camera
         {
             _texture = null;
             _frameCount = 0;
+        }
+
+        private void SchedulePeerReset(string status, bool clearSignal)
+        {
+            if (_resetCoroutine != null)
+                return;
+
+            _resetCoroutine = StartCoroutine(ResetPeerNextFrame(status, clearSignal));
+        }
+
+        private IEnumerator ResetPeerNextFrame(string status, bool clearSignal)
+        {
+            yield return null;
+            _resetCoroutine = null;
+            ResetPeer(clearSignal);
+            _status = status;
         }
 
         private void EnsureWebRtcUpdateLoop()

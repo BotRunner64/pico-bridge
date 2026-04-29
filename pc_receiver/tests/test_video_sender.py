@@ -16,6 +16,7 @@ from pico_bridge.webrtc_sender import (
     CameraVideoTrack,
     RealSenseVideoTrack,
     WebRtcVideoSender,
+    _LatestFrameTrack,
     _make_rgb_test_frame,
     _open_realsense,
 )
@@ -72,6 +73,80 @@ class TestWebRtcPattern:
         req = CameraRequest(codec="h264")
         with pytest.raises(ValueError):
             asyncio.run(sender.start(req))
+
+    def test_latest_frame_track_reuses_cached_source_frame(self):
+        class FakeLatestFrameTrack(_LatestFrameTrack):
+            def __init__(self):
+                self.read_count = 0
+                super().__init__(16, 8, 30)
+
+            def _read_source_frame(self):
+                self.read_count += 1
+                frame = _make_rgb_test_frame(16, 8, self.read_count)
+                return av.VideoFrame.from_ndarray(frame, format="rgb24")
+
+        import av
+
+        async def run():
+            track = FakeLatestFrameTrack()
+            try:
+                first = await track.recv()
+                second = await track.recv()
+            finally:
+                track.stop()
+            return first, second, track.read_count
+
+        first, second, read_count = asyncio.run(run())
+
+        assert first.pts == 0
+        assert second.pts == 3000
+        assert read_count >= 1
+
+    def test_sender_cleans_up_when_offer_signal_fails(self, monkeypatch):
+        peers = []
+
+        class FakeDescription:
+            type = "offer"
+            sdp = "fake-sdp"
+
+        class FakePeer:
+            def __init__(self):
+                self.localDescription = FakeDescription()
+                self.closed = False
+                peers.append(self)
+
+            def on(self, _event):
+                def register(handler):
+                    return handler
+
+                return register
+
+            def addTrack(self, _track):
+                pass
+
+            async def createOffer(self):
+                return FakeDescription()
+
+            async def setLocalDescription(self, description):
+                self.localDescription = description
+
+            async def close(self):
+                self.closed = True
+
+        fake_aiortc = types.SimpleNamespace(RTCPeerConnection=FakePeer)
+        monkeypatch.setitem(sys.modules, "aiortc", fake_aiortc)
+
+        async def send_signal(_name, _value):
+            raise BrokenPipeError("control connection dropped")
+
+        sender = WebRtcVideoSender(send_signal)
+
+        with pytest.raises(BrokenPipeError):
+            asyncio.run(sender.start(CameraRequest(codec="webrtc")))
+
+        assert sender.is_running is False
+        assert len(peers) == 1
+        assert peers[0].closed is True
 
     def test_camera_source_creates_camera_track(self, monkeypatch):
         async def send_signal(name, value):
@@ -211,3 +286,6 @@ class _FakeWriter:
 
     def write(self, data: bytes) -> None:
         self.writes.append(data)
+
+    async def drain(self) -> None:
+        pass

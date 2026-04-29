@@ -124,7 +124,7 @@ namespace PicoBridge.UI
                 return;
             }
 
-            if (_cameraPreviewRequested)
+            if (_cameraPreviewRequested && !manager.WebRtcCamera.ShouldRetry)
                 return;
 
             _cameraPreviewRequested = true;
@@ -203,7 +203,9 @@ namespace PicoBridge.UI
                 if (!connected)
                     view.cameraStatusText.text = "Camera idle";
                 else if (hasSignal)
-                    view.cameraStatusText.text = $"Camera live  {camera.FrameCount}";
+                    view.cameraStatusText.text = camera.LastFrameIntervalMs > 0f
+                        ? $"Camera live  {camera.FrameCount}  {camera.LastFrameIntervalMs:0} ms"
+                        : $"Camera live  {camera.FrameCount}";
                 else
                     view.cameraStatusText.text = camera != null ? camera.Status : "Camera waiting";
             }

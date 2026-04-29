@@ -97,6 +97,20 @@ pytest tests -q
 - 连接 PC receiver 后确认 tracking 持续到达
 - Android 真机确认彩透仍可用
 
+## Troubleshooting
+
+### 摄像头预览在 `Build & Run` 时更卡
+
+已观察到：PICO 通过 USB 数据线连接电脑，并从 Unity 执行 `Build & Run` 后，摄像头预览画面可能比普通运行更卡。
+
+排查摄像头 / WebRTC 预览卡顿时，把 USB 调试连接和 Unity `Build & Run` 当作独立变量记录。建议对比：
+
+- 数据线连接 + Unity `Build & Run`
+- 拔掉数据线后运行已安装 APK
+- 只通过网络连接 PC receiver 的运行状态
+
+如果只有 `Build & Run` 路径明显变卡，优先怀疑 USB 调试、logcat、安装后调试会话或电脑端 adb 连接带来的额外负载，而不是直接归因到摄像头编码或 WebRTC 参数。
+
 ## 项目约定
 
 - 所有新功能都在当前 Built-in 主线继续开发

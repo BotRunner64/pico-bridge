@@ -147,12 +147,27 @@ class PicoBridgeRuntime:
         sender = self._webrtc_sender
         if sender is not None:
             if name == "WebRtcAnswer":
-                asyncio.create_task(sender.handle_answer(value))
+                self._schedule_sender_task(sender.handle_answer(value), "handle WebRTC answer")
                 return
             if name == "WebRtcIceCandidate":
-                asyncio.create_task(sender.handle_ice_candidate(value))
+                self._schedule_sender_task(sender.handle_ice_candidate(value), "handle WebRTC ICE candidate")
                 return
         log.info("function: %s = %s", name, value)
+
+    @staticmethod
+    def _schedule_sender_task(coro: Any, label: str) -> asyncio.Task:
+        task = asyncio.create_task(coro)
+
+        def log_failure(done: asyncio.Task) -> None:
+            try:
+                done.result()
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                log.exception("failed to %s", label)
+
+        task.add_done_callback(log_failure)
+        return task
 
     def _handle_camera_request(self, req: CameraRequest) -> None:
         sender = self._webrtc_sender
@@ -166,12 +181,12 @@ class PicoBridgeRuntime:
             except Exception:
                 log.exception("failed to start WebRTC video sender")
 
-        asyncio.create_task(start_video())
+        self._schedule_sender_task(start_video(), "start WebRTC video sender")
 
-    def _handle_camera_stop(self) -> None:
+    def _handle_camera_stop(self) -> asyncio.Task | None:
         sender = self._webrtc_sender
         if sender is None:
-            return
+            return None
 
         async def stop_video() -> None:
             try:
@@ -179,4 +194,4 @@ class PicoBridgeRuntime:
             except Exception:
                 log.exception("failed to stop WebRTC video sender")
 
-        asyncio.create_task(stop_video())
+        return self._schedule_sender_task(stop_video(), "stop WebRTC video sender")
