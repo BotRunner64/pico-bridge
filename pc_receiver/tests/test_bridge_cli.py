@@ -18,3 +18,10 @@ def test_realsense_video_source_is_parsed():
     args = build_parser().parse_args(["--video", "realsense", "--camera-device", "RS123"])
     assert args.video == "realsense"
     assert args.camera_device == "RS123"
+
+
+def test_visualiser_follow_can_be_disabled():
+    args = build_parser().parse_args(["--viz", "--viz-no-follow"])
+
+    assert args.viz is True
+    assert args.viz_no_follow is True

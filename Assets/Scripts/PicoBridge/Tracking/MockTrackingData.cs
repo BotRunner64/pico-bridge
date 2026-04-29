@@ -17,23 +17,32 @@ namespace PicoBridge.Tracking
         public static string GenerateJson(float time)
         {
             var sb = new StringBuilder(8192);
+            Vector3 rootOffset = GetRootOffset(time);
             long tsNs = (long)(Time.realtimeSinceStartupAsDouble * 1_000_000_000);
 
             sb.Append('{');
             sb.Append("\"predictTime\":16000");
             sb.Append(",\"appState\":{\"focus\":true}");
-            AppendHead(sb, time);
-            AppendControllers(sb, time);
-            AppendHands(sb, time);
-            AppendBody(sb, time);
-            AppendMotion(sb, time);
+            AppendHead(sb, time, rootOffset);
+            AppendControllers(sb, time, rootOffset);
+            AppendHands(sb, time, rootOffset);
+            AppendBody(sb, time, rootOffset);
+            AppendMotion(sb, time, rootOffset);
             sb.Append(",\"Input\":0");
             sb.Append($",\"timeStampNs\":{tsNs}");
             sb.Append('}');
             return sb.ToString();
         }
 
-        private static void AppendHead(StringBuilder sb, float time)
+        private static Vector3 GetRootOffset(float time)
+        {
+            return new Vector3(
+                Mathf.Sin(time * 0.45f) * 1.25f,
+                0f,
+                Mathf.Cos(time * 0.35f) * 0.85f);
+        }
+
+        private static void AppendHead(StringBuilder sb, float time, Vector3 rootOffset)
         {
             float hx = Mathf.Sin(time * 0.5f) * 0.1f;
             float hy = 1.6f + Mathf.Sin(time * 0.3f) * 0.02f;
@@ -41,28 +50,26 @@ namespace PicoBridge.Tracking
             float hry = Mathf.Sin(time * 0.2f) * 0.1f;
 
             sb.Append(",\"Head\":{\"pose\":\"");
-            AppendPose(sb, hx, hy, hz, 0f, hry, 0f, 1f);
+            AppendPose(sb, rootOffset.x + hx, rootOffset.y + hy, rootOffset.z + hz, 0f, hry, 0f, 1f);
             sb.Append("\",\"status\":3}");
         }
 
-        private static void AppendControllers(StringBuilder sb, float time)
+        private static void AppendControllers(StringBuilder sb, float time, Vector3 rootOffset)
         {
             float triggerPulse = 0.5f + 0.5f * Mathf.Sin(time * 1.3f);
             float gripPulse = 0.5f + 0.5f * Mathf.Cos(time * 1.1f);
 
             sb.Append(",\"Controller\":{");
-            AppendController(sb, "left", -0.24f, 1.08f, -0.38f, -0.35f, 0.15f, triggerPulse, gripPulse, true, false);
+            AppendController(sb, "left", rootOffset + new Vector3(-0.24f, 1.08f, -0.38f), -0.35f, 0.15f, triggerPulse, gripPulse, true, false);
             sb.Append(',');
-            AppendController(sb, "right", 0.24f, 1.08f, -0.38f, 0.35f, -0.15f, gripPulse, triggerPulse, false, true);
+            AppendController(sb, "right", rootOffset + new Vector3(0.24f, 1.08f, -0.38f), 0.35f, -0.15f, gripPulse, triggerPulse, false, true);
             sb.Append('}');
         }
 
         private static void AppendController(
             StringBuilder sb,
             string side,
-            float x,
-            float y,
-            float z,
+            Vector3 position,
             float axisX,
             float axisY,
             float trigger,
@@ -71,7 +78,7 @@ namespace PicoBridge.Tracking
             bool secondaryButton)
         {
             sb.Append($"\"{side}\":{{\"pose\":\"");
-            AppendPose(sb, x, y, z, 0f, 0f, 0f, 1f);
+            AppendPose(sb, position.x, position.y, position.z, 0f, 0f, 0f, 1f);
             sb.Append("\",\"axisX\":");
             AppendJsonNumber(sb, axisX);
             sb.Append(",\"axisY\":");
@@ -85,16 +92,16 @@ namespace PicoBridge.Tracking
             sb.Append(",\"menuButton\":false}");
         }
 
-        private static void AppendHands(StringBuilder sb, float time)
+        private static void AppendHands(StringBuilder sb, float time, Vector3 rootOffset)
         {
             sb.Append(",\"Hand\":{");
-            AppendHand(sb, "leftHand", -1f, time);
+            AppendHand(sb, "leftHand", -1f, time, rootOffset);
             sb.Append(',');
-            AppendHand(sb, "rightHand", 1f, time + 0.7f);
+            AppendHand(sb, "rightHand", 1f, time + 0.7f, rootOffset);
             sb.Append('}');
         }
 
-        private static void AppendHand(StringBuilder sb, string key, float side, float time)
+        private static void AppendHand(StringBuilder sb, string key, float side, float time, Vector3 rootOffset)
         {
             sb.Append($"\"{key}\":{{\"isActive\":true,\"count\":{HandJointCount},\"scale\":1.0000,\"HandJointLocations\":[");
 
@@ -103,7 +110,7 @@ namespace PicoBridge.Tracking
                 if (i > 0)
                     sb.Append(',');
 
-                Vector3 pos = GetMockHandJoint(side, i, time);
+                Vector3 pos = rootOffset + GetMockHandJoint(side, i, time);
                 sb.Append("{\"p\":\"");
                 AppendPose(sb, pos.x, pos.y, pos.z, 0f, 0f, 0f, 1f);
                 sb.Append("\",\"s\":3,\"r\":0.0100}");
@@ -138,7 +145,7 @@ namespace PicoBridge.Tracking
                 palmZ - segment * 0.006f + wave);
         }
 
-        private static void AppendBody(StringBuilder sb, float time)
+        private static void AppendBody(StringBuilder sb, float time, Vector3 rootOffset)
         {
             Vector3[] joints =
             {
@@ -175,6 +182,7 @@ namespace PicoBridge.Tracking
                     sb.Append(',');
 
                 Vector3 p = joints[i];
+                p += rootOffset;
                 p.x += Mathf.Sin(time * 0.9f + i) * 0.015f;
                 p.z += Mathf.Cos(time * 0.7f + i) * 0.010f;
                 sb.Append("{\"p\":\"");
@@ -185,7 +193,7 @@ namespace PicoBridge.Tracking
             sb.Append($"],\"len\":{BodyJointCount}}}");
         }
 
-        private static void AppendMotion(StringBuilder sb, float time)
+        private static void AppendMotion(StringBuilder sb, float time, Vector3 rootOffset)
         {
             sb.Append(",\"Motion\":{\"joints\":[");
 
@@ -199,7 +207,7 @@ namespace PicoBridge.Tracking
                 float y = 0.72f + Mathf.Sin(angle) * 0.08f;
                 float z = -0.62f + Mathf.Cos(angle) * 0.05f;
                 sb.Append($"{{\"id\":{i},\"p\":\"");
-                AppendPose(sb, x, y, z, 0f, 0f, 0f, 1f);
+                AppendPose(sb, rootOffset.x + x, rootOffset.y + y, rootOffset.z + z, 0f, 0f, 0f, 1f);
                 sb.Append($"\",\"t\":{i},\"va\":\"0,0,0,0,0,0\",\"wva\":\"0,0,0,0,0,0\"}}");
             }
 

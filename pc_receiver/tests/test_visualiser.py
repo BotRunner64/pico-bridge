@@ -163,3 +163,47 @@ def test_log_body_draws_topology_lines_for_valid_joints(visualiser_module):
         [[0.0, 1.0, 0.0], [-1.0, 0.0, 0.0]],
         [[0.0, 1.0, 0.0], [1.0, 0.0, 0.0]],
     ]
+
+
+def test_tracking_center_prefers_body_bounds(visualiser_module):
+    center = visualiser_module._compute_tracking_center({
+        "Head": {"pose": "100,100,100,0,0,0,1"},
+        "Body": {
+            "joints": [
+                {"p": "-1,0,-2,0,0,0,1"},
+                {"p": "3,2,4,0,0,0,1"},
+            ],
+        },
+    })
+
+    assert center == [1.0, 1.0, 1.0]
+
+
+def test_log_tracking_focus_updates_follow_entity(visualiser_module):
+    calls: list[tuple[str, object]] = []
+
+    class FakeRerun:
+        @staticmethod
+        def Transform3D(**kwargs: object):
+            return ("transform", kwargs)
+
+        @staticmethod
+        def Points3D(points: object, **kwargs: object):
+            return ("points", points, kwargs)
+
+        @staticmethod
+        def log(path: str, value: object) -> None:
+            calls.append((path, value))
+
+    visualiser_module.rr = FakeRerun()
+    visualiser_module._follow_enabled = True
+    visualiser_module._log_tracking_focus({
+        "Head": {"pose": "2,4,6,0,0,0,1"},
+    })
+
+    assert calls[0] == (
+        "world/focus",
+        ("transform", {"translation": [2.0, 4.0, 6.0]}),
+    )
+    assert calls[1][0] == "world/focus"
+    assert calls[1][1][0] == "points"

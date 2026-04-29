@@ -17,7 +17,7 @@ def test_run_starts_visualiser_for_viz_connect(monkeypatch):
     calls: list[tuple[object, ...]] = []
 
     fake_visualiser = types.SimpleNamespace(
-        init=lambda *, spawn, connect: calls.append(("init", spawn, connect)),
+        init=lambda *, spawn, connect, follow: calls.append(("init", spawn, connect, follow)),
         push_frame=lambda data: calls.append(("push", data)),
         set_connection_state=lambda connected, device_sn: calls.append(
             ("state", connected, device_sn)
@@ -63,6 +63,6 @@ def test_run_starts_visualiser_for_viz_connect(monkeypatch):
 
     asyncio.run(cli._run(args))
 
-    assert ("init", False, True) in calls
+    assert ("init", False, True, True) in calls
     assert ("server_start", True) in calls
     assert ("close",) in calls

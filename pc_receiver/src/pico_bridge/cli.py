@@ -79,7 +79,11 @@ async def _run(args: argparse.Namespace) -> None:
     if viz_enabled:
         from . import visualiser
 
-        visualiser.init(spawn=not args.viz_connect, connect=args.viz_connect)
+        visualiser.init(
+            spawn=not args.viz_connect,
+            connect=args.viz_connect,
+            follow=not args.viz_no_follow,
+        )
         _viz_push = visualiser.push_frame
         print("Rerun 3D viewer ready")
 
@@ -182,6 +186,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--viz-connect",
         action="store_true",
         help="Connect to an already-running Rerun viewer instead of spawning one",
+    )
+    parser.add_argument(
+        "--viz-no-follow",
+        action="store_true",
+        help="Disable automatic Rerun view tracking of the current tracking-signal center",
     )
     parser.add_argument("-v", "--verbose", action="store_true")
     return parser

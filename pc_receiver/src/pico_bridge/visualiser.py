@@ -25,6 +25,7 @@ _connected = False
 _device_sn = ""
 _start_time = 0.0
 _fps_samples: deque[float] = deque(maxlen=120)
+_follow_enabled = True
 
 # Hand skeleton bone connections (XR standard, 21 joints)
 _HAND_BONES = [
@@ -57,19 +58,29 @@ _HAND_L_COLOR = [255, 220, 50, 255]
 _HAND_R_COLOR = [50, 180, 255, 255]
 _BODY_COLOR = [0, 230, 180, 255]
 _MOTION_COLOR = [255, 90, 170, 255]
+_FOCUS_COLOR = [255, 255, 255, 96]
 _GRID_COLOR = [255, 255, 255, 15]
+_FOCUS_ENTITY_PATH = "world/focus"
 
 
 def _clear_path(path: str) -> None:
     rr.log(path, rr.Clear(recursive=True))
 
 
-def init(spawn: bool = True, connect: bool = False) -> None:
-    global _initialised, _start_time
+def init(spawn: bool = True, connect: bool = False, follow: bool = True) -> None:
+    global _initialised, _start_time, _follow_enabled
     if _initialised:
         return
 
+    _follow_enabled = follow
     rr.init("pico_bridge")
+
+    eye_controls = None
+    if follow:
+        eye_controls = rrb.EyeControls3D(
+            kind=rrb.Eye3DKind.Orbital,
+            tracking_entity=_FOCUS_ENTITY_PATH,
+        )
 
     blueprint = rrb.Blueprint(
         rrb.Vertical(
@@ -77,6 +88,7 @@ def init(spawn: bool = True, connect: bool = False) -> None:
                 name="Tracking",
                 origin="world",
                 background=rrb.Background(color=[18, 18, 28]),
+                eye_controls=eye_controls,
             ),
             rrb.TextDocumentView(
                 name="Status",
@@ -157,6 +169,7 @@ def push_frame(data: dict[str, Any]) -> None:
     _set_time("time", duration=now - _start_time)
 
     _signals.clear()
+    _log_tracking_focus(data)
     _log_head(data.get("Head", {}))
     _log_controllers(data.get("Controller", {}))
     _log_hands(data.get("Hand", {}))
@@ -182,6 +195,69 @@ def _parse_pose(s: object) -> tuple[list[float], list[float]] | None:
     except ValueError:
         return None
     return v[:3], v[3:]
+
+
+def _log_tracking_focus(data: dict[str, Any]) -> None:
+    if not _follow_enabled:
+        return
+
+    center = _compute_tracking_center(data)
+    if center is None:
+        _clear_path(_FOCUS_ENTITY_PATH)
+        return
+
+    rr.log(_FOCUS_ENTITY_PATH, rr.Transform3D(translation=center))
+    rr.log(_FOCUS_ENTITY_PATH, rr.Points3D(
+        [[0.0, 0.0, 0.0]], colors=[_FOCUS_COLOR], radii=[0.03],
+    ))
+
+
+def _compute_tracking_center(data: dict[str, Any]) -> list[float] | None:
+    body_points = _pose_points_from_joints(data.get("Body", {}).get("joints", []))
+    if body_points:
+        return _bounds_center(body_points)
+
+    points: list[list[float]] = []
+    _append_pose(points, data.get("Head", {}).get("pose"))
+
+    controller = data.get("Controller", {})
+    for side in ("left", "right"):
+        _append_pose(points, controller.get(side, {}).get("pose"))
+
+    hand = data.get("Hand", {})
+    for side in ("leftHand", "rightHand"):
+        if hand.get(side, {}).get("isActive"):
+            points.extend(_pose_points_from_joints(hand.get(side, {}).get("HandJointLocations", [])))
+
+    points.extend(_pose_points_from_joints(data.get("Motion", {}).get("joints", [])))
+    return _bounds_center(points) if points else None
+
+
+def _pose_points_from_joints(joints: object) -> list[list[float]]:
+    if not isinstance(joints, list):
+        return []
+
+    points = []
+    for joint in joints:
+        if not isinstance(joint, dict):
+            continue
+        parsed = _parse_pose(joint.get("p", ""))
+        if parsed:
+            points.append(parsed[0])
+    return points
+
+
+def _append_pose(points: list[list[float]], pose: object) -> None:
+    parsed = _parse_pose(pose)
+    if parsed:
+        points.append(parsed[0])
+
+
+def _bounds_center(points: list[list[float]]) -> list[float]:
+    return [
+        (min(point[axis] for point in points) + max(point[axis] for point in points)) * 0.5
+        for axis in range(3)
+    ]
 
 
 def _compute_fps() -> float:
