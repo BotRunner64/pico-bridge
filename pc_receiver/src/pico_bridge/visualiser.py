@@ -46,6 +46,7 @@ _CTRL_R_COLOR = [0, 230, 120, 255]
 _HAND_L_COLOR = [255, 220, 50, 255]
 _HAND_R_COLOR = [50, 180, 255, 255]
 _BODY_COLOR = [0, 230, 180, 255]
+_MOTION_COLOR = [255, 90, 170, 255]
 _GRID_COLOR = [255, 255, 255, 15]
 
 
@@ -150,6 +151,7 @@ def push_frame(data: dict[str, Any]) -> None:
     _log_controllers(data.get("Controller", {}))
     _log_hands(data.get("Hand", {}))
     _log_body(data.get("Body", {}))
+    _log_motion(data.get("Motion", {}))
     _log_status()
 
 
@@ -302,9 +304,29 @@ def _log_body(body: dict) -> None:
         _clear_path("world/body")
 
 
+def _log_motion(motion: dict) -> None:
+    joints = motion.get("joints", [])
+    count = motion.get("len", len(joints))
+    _signals["Motion"] = count > 0
+    if not joints:
+        _clear_path("world/motion")
+        return
+    pts = []
+    for j in joints:
+        parsed = _parse_pose(j.get("p", ""))
+        if parsed:
+            pts.append(parsed[0])
+    if pts:
+        rr.log("world/motion/pts", rr.Points3D(
+            np.array(pts, dtype=np.float32), colors=[_MOTION_COLOR], radii=[0.035],
+        ))
+    else:
+        _clear_path("world/motion")
+
+
 # ── Status bar (TextDocument, not draggable) ──────────────
 
-_SIGNAL_NAMES = ["Head", "Ctrl-L", "Ctrl-R", "Hand-L", "Hand-R", "Body"]
+_SIGNAL_NAMES = ["Head", "Ctrl-L", "Ctrl-R", "Hand-L", "Hand-R", "Body", "Motion"]
 
 
 def _log_status() -> None:

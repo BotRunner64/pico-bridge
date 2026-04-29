@@ -37,6 +37,20 @@ pc_receiver/
 3. 如当前场景未配置桥接对象，执行菜单 `PicoBridge > Setup Scene`
 4. 在头显内 UI 中连接 PC receiver
 
+### 头显内 UI tracking 信号
+
+头显内 UI 底部的信号项是 tracking 数据状态指示，不是开关。亮起表示当前运行环境检测到对应数据源有有效追踪信号；变暗表示该数据源未启用、设备未连接、权限/SDK 不支持，或当前没有有效 pose。
+
+| UI 标签 | 含义 |
+| --- | --- |
+| `HEAD` | 头显位姿，来自 PICO 主传感器 / XR HMD tracking。 |
+| `L CTRL` | 左手柄位姿与输入，来自左侧 controller tracking。 |
+| `R CTRL` | 右手柄位姿与输入，来自右侧 controller tracking。 |
+| `L HAND` | 左手手部追踪骨骼，来自 PICO hand tracking。 |
+| `R HAND` | 右手手部追踪骨骼，来自 PICO hand tracking。 |
+| `BODY` | 身体追踪骨骼，来自 PICO body tracking，用于全身 / 下肢等 body joint 数据。 |
+| `MOTION` | PICO Motion Tracker 外置追踪器信号，不是普通移动/运动状态。当前 UI 会检测已连接 tracker 的有效位姿；真实设备路径中的 `Motion` 数据字段仍是占位输出，Editor Play mock 会填充测试点。 |
+
 ### PicoBridge 菜单
 
 这些菜单是编辑器维护工具，不是每次开发前都必须执行。正常拉取仓库后，开发者可以直接打开项目继续开发。

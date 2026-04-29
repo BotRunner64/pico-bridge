@@ -31,9 +31,7 @@ namespace PicoBridge.Tracking
         public static bool HasValidSignal(TrackingSignalKind signal)
         {
 #if UNITY_EDITOR
-            return signal == TrackingSignalKind.Head ||
-                   signal == TrackingSignalKind.LeftController ||
-                   signal == TrackingSignalKind.RightController;
+            return true;
 #elif UNITY_ANDROID
             switch (signal)
             {
