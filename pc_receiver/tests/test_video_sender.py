@@ -17,6 +17,7 @@ from pico_bridge.webrtc_sender import (
     RealSenseVideoTrack,
     WebRtcVideoSender,
     _LatestFrameTrack,
+    _MediaStreamError,
     _make_rgb_test_frame,
     _open_realsense,
 )
@@ -101,6 +102,22 @@ class TestWebRtcPattern:
         assert first.pts == 0
         assert second.pts == 3000
         assert read_count >= 1
+
+    def test_latest_frame_track_stop_ends_media_stream(self):
+        class FakeLatestFrameTrack(_LatestFrameTrack):
+            def _read_source_frame(self):
+                frame = _make_rgb_test_frame(16, 8, 0)
+                return av.VideoFrame.from_ndarray(frame, format="rgb24")
+
+        import av
+
+        async def run():
+            track = FakeLatestFrameTrack(16, 8, 30)
+            track.stop()
+            with pytest.raises(_MediaStreamError):
+                await track._latest_frame_or_raise()
+
+        asyncio.run(run())
 
     def test_sender_cleans_up_when_offer_signal_fails(self, monkeypatch):
         peers = []

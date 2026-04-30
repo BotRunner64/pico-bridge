@@ -1,7 +1,5 @@
-using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine;
 using UnityEngine.XR;
@@ -208,8 +206,7 @@ namespace PicoBridge.Tracking
                             rd.localPose.PosX, rd.localPose.PosY, rd.localPose.PosZ,
                             rd.localPose.RotQx, rd.localPose.RotQy, rd.localPose.RotQz, rd.localPose.RotQw);
                         _sb.Append($"\",\"t\":{(int)rd.bodyAction}");
-                        // fixed buffers require unsafe — serialize via helper
-                        AppendBodyVelocity(rd);
+                        AppendEmptyBodyVelocity();
                         _sb.Append('}');
                         count++;
                     }
@@ -219,21 +216,11 @@ namespace PicoBridge.Tracking
             _sb.Append($"],\"len\":{count}}}");
         }
 
-        private void AppendBodyVelocity(BodyTrackingRoleData rd)
+        private void AppendEmptyBodyVelocity()
         {
-            // Read fixed double[3] buffers without unsafe via GCHandle
-            var doubles = ReadFixedDoubles(rd);
-            // doubles layout: velo[3], acce[3], wvelo[3], wacce[3] at known offsets
-            // Use simpler approach: just output zeros for velocity data
-            // (velocity is rarely used by consumers, pose is what matters)
+            // Body pose is the consumed signal; velocity fields stay present for protocol compatibility.
             _sb.Append(",\"va\":\"0,0,0,0,0,0\"");
             _sb.Append(",\"wva\":\"0,0,0,0,0,0\"");
-        }
-
-        private static double[] ReadFixedDoubles(BodyTrackingRoleData rd)
-        {
-            // Placeholder — fixed buffer access requires unsafe or pinning
-            return Array.Empty<double>();
         }
 
         // ── Motion Trackers ───────────────────────────────

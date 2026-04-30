@@ -257,12 +257,6 @@ namespace PicoBridge.Camera
             _peer.AddIceCandidate(new RTCIceCandidate(init));
         }
 
-        private void ClearVideoSignal()
-        {
-            _texture = null;
-            _frameCount = 0;
-        }
-
         private void SchedulePeerReset(string status, bool clearSignal)
         {
             if (_resetCoroutine != null)

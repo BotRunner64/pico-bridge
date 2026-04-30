@@ -24,6 +24,12 @@ try:  # Keep unit tests importable before optional runtime deps are installed.
 except Exception:  # pragma: no cover - exercised only in environments without aiortc
     _VideoStreamTrackBase = object
 
+try:  # aiortc treats this as a normal media stream end.
+    from aiortc.mediastreams import MediaStreamError as _MediaStreamError
+except Exception:  # pragma: no cover - exercised only in environments without aiortc
+    class _MediaStreamError(Exception):
+        pass
+
 
 class TestPatternTrack(_VideoStreamTrackBase):
     """aiortc-compatible synthetic video track."""
@@ -106,7 +112,7 @@ class _LatestFrameTrack(_VideoStreamTrackBase):
             if time.monotonic() >= deadline and frame is None:
                 raise RuntimeError("video source produced no frames")
             await asyncio.sleep(0.01)
-        raise RuntimeError("video track stopped")
+        raise _MediaStreamError
 
     def _capture_loop(self) -> None:
         while not self._stopped.is_set():
@@ -381,12 +387,7 @@ class WebRtcVideoSender:
 
 
 def _session_description_from_value(value: Any) -> dict[str, str]:
-    if isinstance(value, str):
-        import json
-
-        value = json.loads(value)
-    if not isinstance(value, dict):
-        raise TypeError("session description must be a dict")
+    value = _json_object_from_value(value, "session description")
     sdp = str(value["sdp"])
     desc_type = str(value.get("type", "answer"))
     return {"sdp": sdp, "type": desc_type}
@@ -403,12 +404,7 @@ def _candidate_to_json(candidate: Any) -> dict[str, Any]:
 def _candidate_from_value(value: Any) -> Any:
     from aiortc.sdp import candidate_from_sdp
 
-    if isinstance(value, str):
-        import json
-
-        value = json.loads(value)
-    if not isinstance(value, dict):
-        raise TypeError("ICE candidate must be a dict")
+    value = _json_object_from_value(value, "ICE candidate")
     candidate_text = str(value.get("candidate", ""))
     if candidate_text.startswith("candidate:"):
         candidate_text = candidate_text[len("candidate:") :]
@@ -416,3 +412,13 @@ def _candidate_from_value(value: Any) -> Any:
     candidate.sdpMid = value.get("sdpMid")
     candidate.sdpMLineIndex = value.get("sdpMLineIndex")
     return candidate
+
+
+def _json_object_from_value(value: Any, label: str) -> dict[str, Any]:
+    if isinstance(value, str):
+        import json
+
+        value = json.loads(value)
+    if not isinstance(value, dict):
+        raise TypeError(f"{label} must be a dict")
+    return value
