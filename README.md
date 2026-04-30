@@ -34,7 +34,7 @@ PC 端：
 ```bash
 cd pc_receiver
 pip install -e .
-pico-bridge-receiver -v
+pico-bridge-receiver -v --video camera --viz
 ```
 
 PICO 端：

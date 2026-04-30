@@ -66,6 +66,22 @@ pc_receiver/dist/
 
 也可以从 Unity Editor 手动切到 Android 后构建。
 
+## 安装 PICO APK
+
+PC 端先下载 Android SDK Platform Tools 获取 `adb`：<https://developer.android.com/tools/releases/platform-tools>。
+
+用 USB 数据线连接 PICO 头显和 PC，在头显里允许 USB 调试授权后检查设备：
+
+```bash
+adb devices
+```
+
+安装或覆盖安装 APK：
+
+```bash
+adb install -r /tmp/pico-bridge-v0.1.0-alpha.apk
+```
+
 ## 推荐命名
 
 ```text
@@ -88,7 +104,7 @@ sha256sums.txt
 
 ## 安装
 
-- PICO: 安装 APK
+- PICO: 下载 Android SDK Platform Tools，用 USB 数据线连接 PICO 和 PC，执行 `adb install -r pico-bridge-pico-v0.1.0-alpha.apk`
 - PC: `pip install pico_bridge_pc_receiver-0.1.0-py3-none-any.whl`
 
 ## 端口

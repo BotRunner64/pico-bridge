@@ -8,10 +8,16 @@ version = "0.1.0"
 description = "PC-side receiver for the PICO Bridge tracking pipeline"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["av>=12.0", "aiortc>=1.8", "numpy>=1.24", "pyrealsense2>=2.56"]
+dependencies = [
+    "av>=12.0",
+    "aiortc>=1.8",
+    "numpy>=1.24",
+    "pyrealsense2>=2.56",
+    "rerun-sdk>=0.18",
+]
 
 [project.optional-dependencies]
-viz = ["rerun-sdk>=0.18", "numpy>=1.24"]
+viz = []
 
 [project.scripts]
 pico-bridge-receiver = "pico_bridge.cli:main"

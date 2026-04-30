@@ -8,20 +8,21 @@
 - PICO 头显和 PC 在同一个局域网。
 - PC 允许 TCP `63901` 和 UDP `29888` 通过防火墙。
 - PC Python 版本 `>= 3.10`。
+- 如果需要手动安装 APK，下载 Android SDK Platform Tools 获取 `adb`：<https://developer.android.com/tools/releases/platform-tools>。
 
 ## 1. 启动 PC receiver
 
 ```bash
 cd pc_receiver
 pip install -e .
-pico-bridge-receiver -v
+pico-bridge-receiver -v --video camera --viz
 ```
 
 如果只想用源码入口调试：
 
 ```bash
 cd pc_receiver
-python bridge.py -v
+python bridge.py -v --video camera --viz
 ```
 
 默认 receiver 会：
@@ -29,6 +30,7 @@ python bridge.py -v
 - 监听 TCP `63901`
 - 通过 UDP `29888` 广播发现信息
 - 接收并打印低频连接、视频和状态日志
+- 等头显请求后打开 PC camera，并在 Rerun 窗口显示 tracking 可视化
 
 逐帧排查 tracking 时再打开详细输出：
 
@@ -39,6 +41,23 @@ python bridge.py --print-tracking
 ## 2. 启动 PICO 端
 
 推荐使用已发布 APK。开发时也可以用 Unity 打开项目后构建安装。
+
+已发布 APK 安装路径：
+
+1. 下载 Android SDK Platform Tools，并确认 `adb` 在 `PATH` 中，或在命令里使用 `platform-tools/adb` 的完整路径。
+2. 用 USB 数据线连接 PICO 头显和 PC。
+3. 在头显里允许 USB 调试授权。
+4. 确认 PC 能看到设备：
+
+```bash
+adb devices
+```
+
+5. 安装 APK：
+
+```bash
+adb install -r path/to/pico-bridge.apk
+```
 
 Unity 开发路径：
 

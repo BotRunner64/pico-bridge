@@ -12,20 +12,26 @@ cd pc_receiver
 pip install -e .
 ```
 
-可视化调试需要额外安装 `viz`：
+基础安装包含 WebRTC、PyAV、RealSense 和 Rerun 可视化依赖，因为 PC 相机/RealSense 视频回传和 tracking 可视化是核心调试路径。
+
+## CLI 常用示例
 
 ```bash
-pip install -e ".[viz]"
+pico-bridge-receiver -v --video camera --viz
 ```
 
-基础安装包含 WebRTC、PyAV、RealSense 依赖，因为 PC 相机/RealSense 视频回传是核心能力。
+源码调试入口同样可以启用 PC camera 和 Rerun 可视化：
+
+```bash
+python bridge.py -v --video camera --viz
+```
 
 ## SDK 最小示例
 
 ```python
 from pico_bridge import PicoBridge
 
-with PicoBridge(video="realsense") as pico:
+with PicoBridge(video="camera") as pico:
     frame = pico.wait_frame(timeout=2.0)
     print(frame.body.joints.shape)
     print(frame.left_hand.active)

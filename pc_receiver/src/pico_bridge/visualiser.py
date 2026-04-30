@@ -4,7 +4,7 @@ Shows head, controllers, hands, and body as 3D objects in space,
 plus a status bar showing which signals are active.
 
 Usage:
-    python bridge.py -v --viz
+    python bridge.py -v --video camera --viz
 """
 
 from __future__ import annotations

@@ -8,13 +8,13 @@
 
 ```bash
 pip install -e .
-pico-bridge-receiver -v
+pico-bridge-receiver -v --video camera --viz
 ```
 
 源码调试入口：
 
 ```bash
-python bridge.py -v
+python bridge.py -v --video camera --viz
 ```
 
 ## 开发验证
