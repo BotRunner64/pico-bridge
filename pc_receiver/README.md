@@ -204,6 +204,13 @@ cd pc_receiver
 python bridge.py -v
 ```
 
+默认 CLI 只输出连接、视频、告警和低频状态摘要，避免每帧 tracking 刷屏。需要逐帧排查 tracking 内容时再显式开启：
+
+```bash
+python bridge.py --print-tracking
+python bridge.py --status-interval 0   # 关闭周期状态摘要
+```
+
 如果希望按标准 Python 包方式使用：
 
 ```bash
