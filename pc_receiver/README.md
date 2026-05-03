@@ -1,8 +1,8 @@
 # PC Receiver
 
-PICO Bridge 的 PC 端 Python 包。
+PC-side Python package for PICO Bridge.
 
-接口文档见 [`../docs/pc-receiver.md`](../docs/pc-receiver.md)。
+See [`../docs/en/pc-receiver.md`](../docs/en/pc-receiver.md) for the English API documentation, or [`../docs/zh/pc-receiver.md`](../docs/zh/pc-receiver.md) for Chinese.
 
 ## Quick Start
 

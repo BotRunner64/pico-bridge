@@ -27,6 +27,14 @@
 - Prefer small, focused MonoBehaviours and utility classes.
 - Keep diffs small and avoid unrelated scene churn.
 
+## Documentation
+
+- Keep root `README.md` and package `README.md` files in English.
+- Root `README.md` is the project homepage and documentation index. Keep it concise and link to both English and Chinese docs.
+- Keep English docs under `docs/en/` and Chinese docs under `docs/zh/`. Do not mix English and Chinese full documentation in the same file.
+- English and Chinese documentation must stay fully equivalent: every fact, command, setup step, option, warning, and behavioral guarantee added to one language must be added to the other in the same change.
+- When adding, renaming, or deleting a documentation page in one language, make the same structural change in the other language and update the index links.
+
 ## Validation
 
 - For Python receiver changes, run `pytest tests -q` from `pc_receiver/`.

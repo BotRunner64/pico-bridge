@@ -1,17 +1,45 @@
-<div align="center">
-  <img src="Assets/Branding/logo.png" alt="PICO Bridge logo" width="160">
-  <h1>PICO Bridge</h1>
-</div>
+<p align="center">
+  <img src="Assets/Branding/logo.png" alt="PICO Bridge" width="160">
+</p>
 
-PICO Bridge 把 PICO 4 / PICO 4 Ultra 的头显、手柄、手部、身体和 Motion Tracker 数据发送到 PC，并支持按需把 PC 摄像头画面回传到头显。
+<h1 align="center">PICO Bridge</h1>
+
+<p align="center">
+  Stream PICO headset, controller, hand, body, and Motion Tracker data to a PC.
+  <br/>
+  Optionally stream PC camera video back to the headset.
+</p>
+
+<p align="center">
+  <a href="docs/en/README.md">English Docs</a> •
+  <a href="docs/zh/README.md">中文文档</a> •
+  <a href="docs/en/pc-receiver.md">PC Receiver</a> •
+  <a href="docs/en/unity-development.md">Unity Development</a>
+</p>
+
+---
+
+## Highlights
+
+- **PICO tracking bridge**: headset, controllers, hands, body, and Motion Tracker data.
+- **PC-side Python SDK**: import `PicoBridge` directly from other Python projects.
+- **Optional video return**: stream PC camera / RealSense / test-pattern video back to the headset.
+- **Built-in 3D Unity mainline**: no URP or Live Preview dependency.
+- **Dependency-friendly PC package**: downstream projects can depend only on `pc_receiver`.
+
+---
 
 ## Quick Start
 
-1. PICO 和 PC 连接同一个局域网。
-2. 使用前在 PICO 开发者菜单中关闭安全边界。
-3. 在 PICO `设置 > 交互` 中打开“手势和控制器自动切换”。
-4. 安装 APK，或用 Unity `2022.3.62f3` 构建安装。
-5. 在头显中启动 PICO Bridge 应用。
+**1. Prepare the headset**
+
+1. Connect the PICO headset and PC to the same local network.
+2. Disable the safety boundary in the PICO developer menu before use.
+3. Enable `Settings > Interaction > Automatic switching between gestures and controllers` on the headset.
+4. Install the APK, or build and install it with Unity `2022.3.62f3`.
+5. Start the PICO Bridge app in the headset.
+
+**2. Start the PC receiver**
 
 ```bash
 cd pc_receiver
@@ -19,9 +47,11 @@ pip install -e .
 pico-bridge-receiver -v --video camera --viz
 ```
 
-6. 在头显内 PicoBridge 面板连接 PC receiver。
+**3. Connect**
 
-手动安装 APK：
+Connect to the PC receiver from the PicoBridge panel in the headset.
+
+Manual APK installation:
 
 ```bash
 sudo apt update
@@ -30,9 +60,14 @@ adb devices
 adb install -r path/to/pico-bridge.apk
 ```
 
-全身动捕需要先在 PICO 系统里配置 Motion Tracker，并完成校准。
+Full-body motion capture requires Motion Tracker setup and calibration in the PICO system before use.
 
-## Docs
+---
 
-- PC 接口：[`docs/pc-receiver.md`](docs/pc-receiver.md)
-- Unity 结构和开发：[`docs/unity-development.md`](docs/unity-development.md)
+## Documentation
+
+| Topic | English | 中文 |
+| --- | --- | --- |
+| Documentation Home | [docs/en/README.md](docs/en/README.md) | [docs/zh/README.md](docs/zh/README.md) |
+| PC Receiver API | [pc-receiver.md](docs/en/pc-receiver.md) | [PC 接口](docs/zh/pc-receiver.md) |
+| Unity Development | [unity-development.md](docs/en/unity-development.md) | [Unity 结构和开发](docs/zh/unity-development.md) |
