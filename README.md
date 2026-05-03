@@ -29,6 +29,12 @@ docs/                           面向使用、维护、发布的文档
 
 ## 最小运行路径
 
+PICO 端：
+
+1. 安装已发布的 APK，或用 Unity `2022.3.62f3` 构建安装。
+2. 确认 PICO 和 PC 在同一个局域网。
+3. 启动头显内 PICO Bridge 应用。
+
 PC 端：
 
 ```bash
@@ -37,11 +43,10 @@ pip install -e .
 pico-bridge-receiver -v --video camera --viz
 ```
 
-PICO 端：
+连接：
 
-1. 安装已发布的 APK，或用 Unity `2022.3.62f3` 构建安装。
-2. 确认 PICO 和 PC 在同一个局域网。
-3. 打开头显内 PicoBridge 面板并连接 PC receiver。
+1. 打开头显内 PicoBridge 面板并连接 PC receiver。
+2. PC receiver 日志应显示 connected 状态和 tracking 帧更新。
 
 默认端口：
 
