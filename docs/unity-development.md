@@ -14,6 +14,8 @@ PICO 4 和 PICO 4 Ultra 使用同一 APK，不按设备拆包。使用前在 PIC
 
 全身动捕需要先在 PICO 系统里配置 Motion Tracker，并完成校准。未配置或未校准时，`BODY` / `MOTION` 不亮是预期表现。
 
+Tip: 如果要在 Unity 里直接 `Build & Run` 到头显，请先用支持数据传输的 USB 数据线连接 PC 和 PICO；充电线可能不会被 Unity 识别为可部署设备。
+
 ## 第一次打开项目
 
 1. 在 Unity Hub 选择 `Add` / `Add project from disk`，加入仓库根目录。
