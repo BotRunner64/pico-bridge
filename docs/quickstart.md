@@ -61,10 +61,12 @@ adb install -r path/to/pico-bridge.apk
 
 Unity 开发路径：
 
-1. 用 Unity `2022.3.62f3` 打开仓库根目录。
-2. 确认 Android 平台启用 PICO Loader。
-3. 如当前场景缺少桥接对象，执行 `PicoBridge > Setup Scene`。
-4. 构建并安装到 PICO 头显。
+1. 第一次 clone 后，打开 Unity Hub，选择 `Add` / `Add project from disk`，把仓库根目录加入 Hub。
+2. 用 Unity `2022.3.62f3` 从 Hub 打开该项目。
+3. 进入 Editor 后，手动打开 `Assets/Scenes/SampleScene.unity`。Unity 不会可靠地根据 Build Settings 自动打开主场景。
+4. 确认 Android 平台启用 PICO Loader。
+5. 如当前场景缺少桥接对象，执行 `PicoBridge > Setup Scene`。
+6. 构建并安装到 PICO 头显。
 
 ## 3. 连接
 

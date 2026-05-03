@@ -10,7 +10,11 @@ Unity 端负责采集 PICO tracking 数据、维护头显内 UI、连接 PC rece
 - 当前场景：`Assets/Scenes/SampleScene.unity`
 - Android package：`com.picobridge.app`
 
-不要把旧 URP 工程当作主线。它只能作为仓库外参考。
+## 第一次打开项目
+
+第一次 clone 后，先在 Unity Hub 里选择 `Add` / `Add project from disk`，把仓库根目录加入 Hub，再用 Unity `2022.3.62f3` 打开项目。
+
+进入 Editor 后需要手动打开 `Assets/Scenes/SampleScene.unity`。Unity Editor 启动时通常恢复本机上次编辑状态，不会可靠地根据 Build Settings 自动打开主场景。
 
 ## 代码位置
 

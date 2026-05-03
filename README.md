@@ -5,7 +5,7 @@ PICO Bridge 是一套 PICO 头显到 PC 的桥接工具：
 - PICO/Unity 端负责采集头显、手柄、手部、身体和 Motion Tracker tracking 数据。
 - PC receiver 端负责局域网发现、TCP 接收、tracking 缓存，以及按需把 PC 摄像头或 RealSense 画面通过 WebRTC 回传到头显。
 
-当前主线是 Unity Built-in 3D 项目，编辑器版本固定为 `2022.3.62f3`。
+Unity 项目使用 Built-in 3D，编辑器版本固定为 `2022.3.62f3`。
 
 ## 快速入口
 

@@ -10,7 +10,7 @@
 
 ## Unity 约定
 
-- 保持 Built-in 3D 主线，不恢复 URP / Live Preview 依赖。
+- Render Pipeline 使用 Built-in 3D。
 - 运行时代码不要创建、删除、重建或自动迁移 UI 层级。
 - UI 层级通过编辑器工具或手动 prefab/scene 编辑维护。
 - 添加、移动、删除 Unity asset 时保留 `.meta` 文件。
