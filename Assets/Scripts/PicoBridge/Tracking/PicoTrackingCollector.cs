@@ -188,7 +188,7 @@ namespace PicoBridge.Tracking
             PXR_MotionTracking.GetBodyTrackingSupported(ref supported);
 
             int count = 0;
-            if (supported)
+            if (supported && TrackingSignalStatus.HasValidSignal(TrackingSignalKind.Body))
             {
                 BodyTrackingGetDataInfo getInfo = new BodyTrackingGetDataInfo { displayTime = 0 };
                 BodyTrackingData data = new BodyTrackingData();

@@ -176,6 +176,27 @@ def test_log_body_clears_when_all_joint_poses_are_invalid(visualiser_module):
     assert calls == [("world/body", ("clear", True))]
 
 
+def test_log_body_clears_when_declared_count_is_zero(visualiser_module):
+    calls: list[tuple[str, object]] = []
+
+    class FakeRerun:
+        @staticmethod
+        def Clear(*, recursive: bool):
+            return ("clear", recursive)
+
+        @staticmethod
+        def log(path: str, value: object) -> None:
+            calls.append((path, value))
+
+    visualiser_module.rr = FakeRerun()
+    visualiser_module._log_body({
+        "len": 0,
+        "joints": [{"p": "0,1,0,0,0,0,1"}],
+    })
+
+    assert calls == [("world/body", ("clear", True))]
+
+
 def test_log_body_draws_topology_lines_for_valid_joints(visualiser_module):
     calls: list[tuple[str, object]] = []
 
@@ -235,6 +256,46 @@ def test_tracking_center_prefers_body_bounds(visualiser_module):
     })
 
     assert center == [1.0, 1.0, 1.0]
+
+
+def test_tracking_center_ignores_body_when_declared_count_is_zero(visualiser_module):
+    center = visualiser_module._compute_tracking_center({
+        "Head": {"pose": "2,4,6,0,0,0,1"},
+        "Body": {
+            "len": 0,
+            "joints": [
+                {"p": "100,100,100,0,0,0,1"},
+            ],
+        },
+    })
+
+    assert center == [2.0, 4.0, 6.0]
+
+
+def test_log_tracking_focus_clears_when_only_body_count_is_zero(visualiser_module):
+    calls: list[tuple[str, object]] = []
+
+    class FakeRerun:
+        @staticmethod
+        def Clear(*, recursive: bool):
+            return ("clear", recursive)
+
+        @staticmethod
+        def log(path: str, value: object) -> None:
+            calls.append((path, value))
+
+    visualiser_module.rr = FakeRerun()
+    visualiser_module._follow_enabled = True
+    visualiser_module._log_tracking_focus({
+        "Body": {
+            "len": 0,
+            "joints": [
+                {"p": "100,100,100,0,0,0,1"},
+            ],
+        },
+    })
+
+    assert calls == [("world/focus", ("clear", True))]
 
 
 def test_log_tracking_focus_updates_follow_entity(visualiser_module):

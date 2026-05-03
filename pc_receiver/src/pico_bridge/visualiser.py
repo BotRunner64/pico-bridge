@@ -215,9 +215,11 @@ def _log_tracking_focus(data: dict[str, Any]) -> None:
 
 
 def _compute_tracking_center(data: dict[str, Any]) -> list[float] | None:
-    body_points = _pose_points_from_joints(data.get("Body", {}).get("joints", []))
-    if body_points:
-        return _bounds_center(body_points)
+    body = data.get("Body", {})
+    if _body_is_active(body):
+        body_points = _pose_points_from_joints(body.get("joints", []))
+        if body_points:
+            return _bounds_center(body_points)
 
     points: list[list[float]] = []
     _append_pose(points, data.get("Head", {}).get("pose"))
@@ -378,9 +380,9 @@ def _log_hands(hand: dict) -> None:
 
 def _log_body(body: dict) -> None:
     joints = body.get("joints", [])
-    count = body.get("len", len(joints))
-    _signals["Body"] = count > 0
-    if not joints:
+    active = _body_is_active(body)
+    _signals["Body"] = active
+    if not active:
         _clear_path("world/body")
         return
 
@@ -410,6 +412,19 @@ def _log_body(body: dict) -> None:
             rr.log("world/body/bones", rr.Clear(recursive=False))
     else:
         _clear_path("world/body")
+
+
+def _body_is_active(body: object) -> bool:
+    if not isinstance(body, dict):
+        return False
+    joints = body.get("joints", [])
+    if not isinstance(joints, list) or not joints:
+        return False
+    try:
+        count = int(body.get("len", len(joints)))
+    except (TypeError, ValueError):
+        count = len(joints)
+    return count > 0
 
 
 def _log_motion(motion: dict) -> None:
