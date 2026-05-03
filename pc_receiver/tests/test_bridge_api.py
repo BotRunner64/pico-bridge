@@ -39,7 +39,7 @@ class FakeRuntime:
 
 
 def test_package_exports_public_api_lazily():
-    assert HAND_JOINT_NAMES[0] == "Wrist"
+    assert HAND_JOINT_NAMES[:2] == ("Palm", "Wrist")
     assert PicoBridge.__name__ == "PicoBridge"
 
 

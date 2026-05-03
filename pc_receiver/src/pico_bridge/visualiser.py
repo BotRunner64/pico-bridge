@@ -27,14 +27,16 @@ _start_time = 0.0
 _fps_samples: deque[float] = deque(maxlen=120)
 _follow_enabled = True
 
-# Hand skeleton bone connections (XR standard, 21 joints)
+# PICO HandJoint topology, indexed by Unity.XR.PXR.HandJoint:
+# Palm, wrist, then thumb/index/middle/ring/little chains.
 _HAND_BONES = [
-    (0, 1), (1, 2), (2, 3), (3, 4),
-    (0, 5), (5, 6), (6, 7), (7, 8),
-    (0, 9), (9, 10), (10, 11), (11, 12),
-    (0, 13), (13, 14), (14, 15), (15, 16),
-    (0, 17), (17, 18), (18, 19), (19, 20),
-    (5, 9), (9, 13), (13, 17),
+    (1, 0),
+    (1, 2), (2, 3), (3, 4), (4, 5),
+    (1, 6), (6, 7), (7, 8), (8, 9), (9, 10),
+    (1, 11), (11, 12), (12, 13), (13, 14), (14, 15),
+    (1, 16), (16, 17), (17, 18), (18, 19), (19, 20),
+    (1, 21), (21, 22), (22, 23), (23, 24), (24, 25),
+    (6, 11), (11, 16), (16, 21),
 ]
 
 # PICO BodyTrackerRole topology, indexed by BodyTrackerRole enum:
@@ -363,7 +365,11 @@ def _log_hands(hand: dict) -> None:
             pts.append(parsed[0] if parsed else [0, 0, 0])
         pts = np.array(pts, dtype=np.float32)
         rr.log(f"{path}/pts", rr.Points3D(pts, colors=[color], radii=[0.006]))
-        bones = [[pts[a].tolist(), pts[b].tolist()] for a, b in _HAND_BONES if a < len(pts) and b < len(pts)]
+        bones = [
+            [pts[a].tolist(), pts[b].tolist()]
+            for a, b in _HAND_BONES
+            if a < len(pts) and b < len(pts)
+        ]
         if bones:
             rr.log(f"{path}/bones", rr.LineStrips3D(bones, colors=[color], radii=[0.003]))
         else:

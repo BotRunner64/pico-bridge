@@ -10,7 +10,7 @@ namespace PicoBridge.Tracking
     /// </summary>
     public static class MockTrackingData
     {
-        private const int HandJointCount = 21;
+        private const int HandJointCount = 26;
         private const int BodyJointCount = 24;
         private const int MotionJointCount = 3;
 
@@ -129,20 +129,26 @@ namespace PicoBridge.Tracking
             if (index == 0)
                 return new Vector3(originX, palmY, palmZ);
 
-            if (index < 5)
+            if (index == 1)
+                return new Vector3(originX, palmY - 0.045f, palmZ + 0.025f);
+
+            if (index < 6)
             {
-                float step = index;
-                return new Vector3(originX + side * (0.025f + step * 0.018f), palmY + step * 0.020f, palmZ + 0.015f + wave);
+                int thumbSegment = index - 1;
+                return new Vector3(
+                    originX + side * (0.020f + thumbSegment * 0.020f),
+                    palmY + 0.005f + thumbSegment * 0.020f,
+                    palmZ + 0.018f + wave);
             }
 
-            int finger = (index - 5) / 4;
-            int segment = ((index - 5) % 4) + 1;
+            int finger = (index - 6) / 5;
+            int fingerSegment = (index - 6) % 5;
             float[] spread = { side * 0.030f, side * 0.010f, -side * 0.010f, -side * 0.030f };
             float[] length = { 0.032f, 0.038f, 0.035f, 0.028f };
             return new Vector3(
                 originX + spread[finger],
-                palmY + 0.025f + segment * length[finger],
-                palmZ - segment * 0.006f + wave);
+                palmY + 0.020f + (fingerSegment + 1) * length[finger],
+                palmZ - fingerSegment * 0.006f + wave);
         }
 
         private static void AppendBody(StringBuilder sb, float time, Vector3 rootOffset)

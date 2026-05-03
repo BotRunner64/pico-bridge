@@ -75,8 +75,8 @@ BODY_JOINT_PARENTS: NDArray[np.int32] = np.array(
 )
 
 HAND_JOINT_NAMES: tuple[str, ...] = (
-    "Wrist",
     "Palm",
+    "Wrist",
     "ThumbMetacarpal",
     "ThumbProximal",
     "ThumbDistal",

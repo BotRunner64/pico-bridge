@@ -100,6 +100,64 @@ def test_log_controller_clears_stale_entity_when_pose_missing(visualiser_module)
     assert ("world/ctrl/right", ("clear", True)) in calls
 
 
+def test_log_hand_uses_pico_topology_for_26_joints(visualiser_module):
+    calls: list[tuple[str, object]] = []
+
+    class FakePoint(list):
+        def tolist(self):
+            return list(self)
+
+    class FakeNumpy:
+        float32 = "float32"
+
+        @staticmethod
+        def array(value: object, dtype: object = None) -> object:
+            return [FakePoint(point) for point in value]
+
+    class FakeRerun:
+        @staticmethod
+        def Clear(*, recursive: bool):
+            return ("clear", recursive)
+
+        @staticmethod
+        def Points3D(points: object, **kwargs: object):
+            return ("points", points, kwargs)
+
+        @staticmethod
+        def LineStrips3D(lines: object, **kwargs: object):
+            return ("lines", lines, kwargs)
+
+        @staticmethod
+        def log(path: str, value: object) -> None:
+            calls.append((path, value))
+
+    joints = [
+        {"p": f"{index},0,0,0,0,0,1"}
+        for index in range(26)
+    ]
+
+    visualiser_module.np = FakeNumpy()
+    visualiser_module.rr = FakeRerun()
+    visualiser_module._log_hands({
+        "leftHand": {
+            "isActive": True,
+            "HandJointLocations": joints,
+        },
+    })
+
+    assert calls[0][0] == "world/hand/leftHand/pts"
+    assert calls[1][0] == "world/hand/leftHand/bones"
+    assert calls[1][1][0] == "lines"
+    assert calls[1][1][1][:6] == [
+        [[1.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+        [[1.0, 0.0, 0.0], [2.0, 0.0, 0.0]],
+        [[2.0, 0.0, 0.0], [3.0, 0.0, 0.0]],
+        [[3.0, 0.0, 0.0], [4.0, 0.0, 0.0]],
+        [[4.0, 0.0, 0.0], [5.0, 0.0, 0.0]],
+        [[1.0, 0.0, 0.0], [6.0, 0.0, 0.0]],
+    ]
+
+
 def test_log_body_clears_when_all_joint_poses_are_invalid(visualiser_module):
     calls: list[tuple[str, object]] = []
 
