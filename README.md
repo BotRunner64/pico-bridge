@@ -1,41 +1,14 @@
 # PICO Bridge
 
-PICO Bridge 是一套 PICO 头显到 PC 的桥接工具：
+PICO Bridge 把 PICO 4 / PICO 4 Ultra 的头显、手柄、手部、身体和 Motion Tracker 数据发送到 PC，并支持按需把 PC 摄像头画面回传到头显。
 
-- PICO/Unity 端负责采集头显、手柄、手部、身体和 Motion Tracker tracking 数据。
-- PC receiver 端负责局域网发现、TCP 接收、tracking 缓存，以及按需把 PC 摄像头或 RealSense 画面通过 WebRTC 回传到头显。
+## Quick Start
 
-Unity 项目使用 Built-in 3D，编辑器版本固定为 `2022.3.62f3`。
-
-## 快速入口
-
-- 第一次跑通：[`docs/quickstart.md`](docs/quickstart.md)
-- PC SDK/API：[`docs/pc-receiver.md`](docs/pc-receiver.md)
-- Unity/PICO 端维护：[`docs/unity-app.md`](docs/unity-app.md)
-- 发布打包：[`docs/release.md`](docs/release.md)
-- 常见问题：[`docs/troubleshooting.md`](docs/troubleshooting.md)
-- 架构和开发约定：[`docs/architecture.md`](docs/architecture.md)、[`docs/development.md`](docs/development.md)
-
-## 仓库结构
-
-```text
-Assets/Scripts/PicoBridge/      Unity/PICO 端运行时代码和编辑器工具
-Assets/Prefabs/PicoBridge/      头显内 UI prefab
-Assets/Scenes/                  Unity 场景
-Packages/PICO-Unity-Integration-SDK/
-pc_receiver/                    PC 端 Python receiver package
-docs/                           面向使用、维护、发布的文档
-```
-
-## 最小运行路径
-
-PICO 端：
-
-1. 安装已发布的 APK，或用 Unity `2022.3.62f3` 构建安装。
-2. 确认 PICO 和 PC 在同一个局域网。
-3. 启动头显内 PICO Bridge 应用。
-
-PC 端：
+1. PICO 和 PC 连接同一个局域网。
+2. 使用前在 PICO 开发者菜单中关闭安全边界。
+3. 在 PICO `设置 > 交互` 中打开“手势和控制器自动切换”。
+4. 安装 APK，或用 Unity `2022.3.62f3` 构建安装。
+5. 在头显中启动 PICO Bridge 应用。
 
 ```bash
 cd pc_receiver
@@ -43,18 +16,20 @@ pip install -e .
 pico-bridge-receiver -v --video camera --viz
 ```
 
-连接：
+6. 在头显内 PicoBridge 面板连接 PC receiver。
 
-1. 打开头显内 PicoBridge 面板并连接 PC receiver。
-2. PC receiver 日志应显示 connected 状态和 tracking 帧更新。
+手动安装 APK：
 
-默认端口：
+```bash
+sudo apt update
+sudo apt install android-tools-adb
+adb devices
+adb install -r path/to/pico-bridge.apk
+```
 
-- TCP tracking/control：`63901`
-- UDP discovery：`29888`
+全身动捕需要先在 PICO 系统里配置 Motion Tracker，并完成校准。
 
-## 当前发布建议
+## Docs
 
-本项目当前适合发布为内部/合作方 alpha 包：`PICO APK + PC receiver wheel + release notes`。公开商店发布前，应先完成正式签名、版本策略、安装文档和长时间真机稳定性验证。
-
-具体流程见 [`docs/release.md`](docs/release.md)。
+- PC 接口：[`docs/pc-receiver.md`](docs/pc-receiver.md)
+- Unity 结构和开发：[`docs/unity-development.md`](docs/unity-development.md)
