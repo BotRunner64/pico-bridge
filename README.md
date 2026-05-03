@@ -1,4 +1,7 @@
-# PICO Bridge
+<div align="center">
+  <img src="Assets/Branding/logo.png" alt="PICO Bridge logo" width="160">
+  <h1>PICO Bridge</h1>
+</div>
 
 PICO Bridge 把 PICO 4 / PICO 4 Ultra 的头显、手柄、手部、身体和 Motion Tracker 数据发送到 PC，并支持按需把 PC 摄像头画面回传到头显。
 
