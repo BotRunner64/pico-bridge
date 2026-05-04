@@ -6,7 +6,13 @@ Use the synchronous `PicoBridge` API on the PC side to read the latest tracking 
 
 ## Installation
 
-Install the PC receiver from the package directory during local development:
+Install the PC receiver from the wheel attached to the GitHub Release:
+
+```bash
+pip install https://github.com/BotRunner64/pico-bridge/releases/download/v0.1.0/pico_bridge-0.1.0-py3-none-any.whl
+```
+
+For local development inside this repository, install from the package directory:
 
 ```bash
 cd pc_receiver
@@ -15,15 +21,15 @@ pip install -e .
 
 ## Dependency From Another Project
 
-If another project only needs the PC SDK and does not need the Unity project, depend on the `pc_receiver` subdirectory directly:
+If another project only needs the PC SDK and does not need the Unity project, depend on the release wheel directly:
 
 ```toml
 dependencies = [
-    "pico-bridge-pc-receiver @ git+ssh://git@github.com/BotRunner64/pico-bridge.git@v0.1.0#subdirectory=pc_receiver"
+    "pico-bridge @ https://github.com/BotRunner64/pico-bridge/releases/download/v0.1.0/pico_bridge-0.1.0-py3-none-any.whl"
 ]
 ```
 
-Replace `v0.1.0` with the tag or commit you want to use. Prefer a fixed tag or commit instead of `main`, so downstream environments are not affected by unrelated Unity project changes.
+The package version follows the PICO/APK release version. For example, `pico_bridge-0.1.0-py3-none-any.whl` matches the `v0.1.0` APK release. This wheel install path downloads only the PC Python package, not the Unity project.
 
 For local integration testing, install only the subdirectory:
 

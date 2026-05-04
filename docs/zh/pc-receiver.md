@@ -6,7 +6,13 @@ PC 端推荐使用同步 `PicoBridge` API 读取最新 tracking 帧。
 
 ## 安装
 
-本地开发时，从 PC receiver 包目录安装：
+从 GitHub Release 附带的 wheel 安装 PC receiver：
+
+```bash
+pip install https://github.com/BotRunner64/pico-bridge/releases/download/v0.1.0/pico_bridge-0.1.0-py3-none-any.whl
+```
+
+在本仓库内本地开发时，从 PC receiver 包目录安装：
 
 ```bash
 cd pc_receiver
@@ -15,15 +21,15 @@ pip install -e .
 
 ## 作为其他项目依赖
 
-如果其他项目只需要 PC SDK，不需要 Unity 工程，可以直接依赖 `pc_receiver` 子目录：
+如果其他项目只需要 PC SDK，不需要 Unity 工程，可以直接依赖 release wheel：
 
 ```toml
 dependencies = [
-    "pico-bridge-pc-receiver @ git+ssh://git@github.com/BotRunner64/pico-bridge.git@v0.1.0#subdirectory=pc_receiver"
+    "pico-bridge @ https://github.com/BotRunner64/pico-bridge/releases/download/v0.1.0/pico_bridge-0.1.0-py3-none-any.whl"
 ]
 ```
 
-把 `v0.1.0` 替换成要使用的 tag 或 commit。推荐依赖固定 tag 或 commit，不要直接依赖 `main`，避免 Unity 项目开发中的变化影响下游环境。
+包版本跟 PICO/APK release 版本保持一致。例如，`pico_bridge-0.1.0-py3-none-any.whl` 对应 `v0.1.0` APK release。通过 wheel 安装只会下载 PC 端 Python 包，不会下载 Unity 工程。
 
 本地联调时也可以只安装子目录：
 

@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pico-bridge-pc-receiver"
+name = "pico-bridge"
 version = "0.1.0"
 description = "PC-side receiver for the PICO Bridge tracking pipeline"
 readme = "README.md"

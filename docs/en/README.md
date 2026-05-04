@@ -18,8 +18,7 @@ PICO Bridge streams headset, controller, hand, body, and Motion Tracker data fro
 5. Start the PICO Bridge app in the headset.
 
 ```bash
-cd pc_receiver
-pip install -e .
+pip install https://github.com/BotRunner64/pico-bridge/releases/download/v0.1.0/pico_bridge-0.1.0-py3-none-any.whl
 pico-bridge-receiver -v --video camera --viz
 ```
 
