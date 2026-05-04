@@ -36,7 +36,7 @@
 1. Connect the PICO headset and PC to the same local network.
 2. Disable the safety boundary in the PICO developer menu before use.
 3. Enable `Settings > Interaction > Automatic switching between gestures and controllers` on the headset.
-4. Install the APK, or build and install it with Unity `2022.3.62f3`.
+4. Download the APK from [GitHub Releases](https://github.com/BotRunner64/pico-bridge/releases), or build and install it with Unity `2022.3.62f3`.
 5. Start the PICO Bridge app in the headset.
 
 **2. Start the PC receiver**

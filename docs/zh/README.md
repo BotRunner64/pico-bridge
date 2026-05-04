@@ -14,7 +14,7 @@ PICO Bridge 把 PICO 4 / PICO 4 Ultra 的头显、手柄、手部、身体和 Mo
 1. PICO 和 PC 连接同一个局域网。
 2. 使用前在 PICO 开发者菜单中关闭安全边界。
 3. 在 PICO `设置 > 交互` 中打开“手势和控制器自动切换”。
-4. 安装 APK，或用 Unity `2022.3.62f3` 构建安装。
+4. 从 [GitHub Releases](https://github.com/BotRunner64/pico-bridge/releases) 下载 APK，或用 Unity `2022.3.62f3` 构建安装。
 5. 在头显中启动 PICO Bridge 应用。
 
 ```bash
