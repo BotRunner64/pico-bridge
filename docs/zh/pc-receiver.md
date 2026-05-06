@@ -19,6 +19,12 @@ cd pc_receiver
 pip install -e .
 ```
 
+PC receiver 支持 x86 和 ARM PC 架构。在 ARM 上使用 RealSense 视频时，需要通过 Conda 安装 RealSense Python 依赖：
+
+```bash
+conda install -c conda-forge pyrealsense2
+```
+
 ## 作为其他项目依赖
 
 如果其他项目只需要 PC SDK，不需要 Unity 工程，可以直接依赖 release wheel：
