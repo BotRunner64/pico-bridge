@@ -35,13 +35,13 @@ namespace PicoBridge.Editor
         private static readonly Color MutedTextColor = new Color(0.66f, 0.72f, 0.75f, 1f);
         private static readonly string[] TrackingSignalLabels =
         {
-            "HEAD",
-            "L CTRL",
-            "R CTRL",
-            "L HAND",
-            "R HAND",
-            "BODY",
-            "MOTION"
+            "Head",
+            "L Ctrl",
+            "R Ctrl",
+            "L Hand",
+            "R Hand",
+            "Body",
+            "Motion"
         };
 
         [MenuItem("PicoBridge/Rebuild Panel Prefab")]
