@@ -18,7 +18,7 @@ PICO Bridge 把 PICO 4 / PICO 4 Ultra 的头显、手柄、手部、身体和 Mo
 5. 在头显中启动 PICO Bridge 应用。
 
 ```bash
-pip install https://github.com/BotRunner64/pico-bridge/releases/download/v0.1.0/pico_bridge-0.1.0-py3-none-any.whl
+pip install https://github.com/BotRunner64/pico-bridge/releases/download/v0.2.0/pico_bridge-0.2.0-py3-none-any.whl
 pico-bridge-receiver -v --video test-pattern --viz
 ```
 
