@@ -115,6 +115,15 @@ namespace PicoBridge.UI
             if (manager == null || manager.WebRtcCamera == null)
                 return;
 
+            if (!manager.AllowPcVideoPreview || !manager.AutoRequestPcVideoPreview)
+            {
+                if (_cameraPreviewRequested || manager.WebRtcCamera.IsActive)
+                    manager.WebRtcCamera.StopPreview();
+
+                _cameraPreviewRequested = false;
+                return;
+            }
+
             if (!manager.IsConnected || manager.TcpClient == null)
             {
                 if (_cameraPreviewRequested || manager.WebRtcCamera.IsActive)
@@ -202,6 +211,8 @@ namespace PicoBridge.UI
             {
                 if (!connected)
                     view.cameraStatusText.text = "Video idle";
+                else if (!manager.AllowPcVideoPreview)
+                    view.cameraStatusText.text = "Video disabled by PC";
                 else if (hasSignal)
                     view.cameraStatusText.text = camera.LastFrameIntervalMs > 0f
                         ? $"Video live  {camera.FrameCount}  {camera.LastFrameIntervalMs:0} ms"

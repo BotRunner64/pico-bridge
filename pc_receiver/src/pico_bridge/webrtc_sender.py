@@ -120,12 +120,15 @@ class ExternalVideoTrack(_VideoStreamTrackBase):
 
 
 def _make_rgb_test_frame(width: int, height: int, frame_index: int) -> np.ndarray:
-    x = np.linspace(0, 255, width, dtype=np.uint8)[None, :]
-    y = np.linspace(0, 255, height, dtype=np.uint8)[:, None]
+    x = np.linspace(0, 255, width, dtype=np.uint16)[None, :]
+    y = np.linspace(0, 255, height, dtype=np.uint16)[:, None]
+    red_phase = (frame_index * 3) % 255
+    green_phase = (frame_index * 5) % 255
+    blue_phase = (frame_index * 7) % 255
     frame = np.empty((height, width, 3), dtype=np.uint8)
-    frame[..., 0] = (x + frame_index * 3) % 255
-    frame[..., 1] = (y + frame_index * 5) % 255
-    frame[..., 2] = ((x // 2 + y // 2 + frame_index * 7) % 255).astype(np.uint8)
+    frame[..., 0] = ((x + red_phase) % 255).astype(np.uint8)
+    frame[..., 1] = ((y + green_phase) % 255).astype(np.uint8)
+    frame[..., 2] = ((x // 2 + y // 2 + blue_phase) % 255).astype(np.uint8)
     bar_width = max(1, width // 12)
     start = (frame_index * 9) % width
     end = min(width, start + bar_width)

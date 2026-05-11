@@ -19,7 +19,11 @@ cd pc_receiver
 pip install -e .
 ```
 
-The core package does not depend on OpenCV, MuJoCo, or RealSense. Install those dependencies only for the examples that need them.
+The core package does not depend on OpenCV, MuJoCo, or RealSense. Install the camera extra only when you need the CLI or examples that use webcam or RealSense devices:
+
+```bash
+pip install -e ".[camera]"
+```
 
 ## As a Dependency
 
@@ -38,6 +42,8 @@ For local integration testing, install only the subdirectory:
 ```bash
 pip install -e /path/to/pico-bridge/pc_receiver
 ```
+
+Use `/path/to/pico-bridge/pc_receiver[camera]` when the integration needs those optional camera dependencies.
 
 ## Tracking Example
 
@@ -69,6 +75,14 @@ with PicoBridge(video="frames") as pico:
 
 `push_video_frame()` stores only the latest frame. It does not queue frames, so a fast simulator will not build up display latency. Frames pushed before the headset starts the WebRTC preview are cached and sent once the preview connection starts.
 
+Use `video_enabled=False` to keep the WebRTC preview disabled at startup, then toggle it later with `set_video_enabled(True)` when you want the headset to request video:
+
+```python
+with PicoBridge(video="frames", video_enabled=False) as pico:
+    pico.push_video_frame(render_frame_as_rgb_uint8())
+    pico.set_video_enabled(True)
+```
+
 Example scripts:
 
 ```bash
@@ -77,11 +91,16 @@ python pc_receiver/examples/realsense_camera.py --serial RS123
 python pc_receiver/examples/mujoco_camera.py path/to/model.xml --camera camera_name
 ```
 
-The receiver CLI is still useful for tracking and video-link testing:
+The receiver CLI can stream a UVC webcam or RealSense camera through the same SDK push-frame path:
 
 ```bash
 pico-bridge-receiver -v --video test-pattern --viz
+pico-bridge-receiver -v --camera webcam --viz
+pico-bridge-receiver -v --camera webcam --camera-device /dev/video0 --viz
+pico-bridge-receiver -v --camera realsense --camera-device RS123 --viz
 ```
+
+Omit `--camera-device` to use webcam index `0` or the default RealSense device. Install the `camera` extra for OpenCV (`cv2`) and `pyrealsense2`.
 
 ## Creating a Receiver
 
@@ -94,6 +113,7 @@ PicoBridge(
     discovery=True,
     advertise_ip=None,
     video=None,
+    video_enabled=None,
     print_tracking=False,
     history_size=120,
     start_timeout=10.0,
@@ -105,6 +125,7 @@ Common parameters:
 
 - `advertise_ip`: PC IPv4 address advertised to the headset when multiple network interfaces are present.
 - `video`: `None`, `"frames"`, or `"test-pattern"`.
+- `video_enabled`: Initial video policy. `None` follows `video`; `False` keeps the headset from requesting WebRTC video until you call `set_video_enabled(True)`.
 - `print_tracking`: Print tracking data every frame.
 - `on_raw_tracking`: Called with the raw Unity JSON when a tracking frame arrives.
 

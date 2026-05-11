@@ -19,6 +19,8 @@ class FakeRuntime:
         self._connected = True
         self._device_sn = "fake-sn"
         self._video_running = False
+        self._video_enabled = kwargs["video_enabled"]
+        self.video_enabled_calls: list[bool] = []
         FakeRuntime.instances.append(self)
 
     async def run(self):
@@ -34,10 +36,14 @@ class FakeRuntime:
         return SimpleNamespace(
             connected=self._connected,
             device_sn=self._device_sn,
-            video_enabled=self.kwargs["video"] is not None,
+            video_enabled=self._video_enabled,
             video_running=self._video_running,
             video_source=self.kwargs["video"],
         )
+
+    async def set_video_enabled(self, enabled: bool) -> None:
+        self._video_enabled = enabled
+        self.video_enabled_calls.append(enabled)
 
 
 def test_package_exports_public_api_lazily():
@@ -53,6 +59,7 @@ def test_pico_bridge_starts_runtime_and_reports_stats(monkeypatch):
         runtime = FakeRuntime.instances[0]
         assert runtime.kwargs["video"] == "frames"
         assert runtime.kwargs["discovery"] is False
+        assert runtime.kwargs["video_enabled"] is True
         assert runtime.kwargs["video_frame_source"] is not None
         stats = bridge.stats()
 
@@ -60,6 +67,33 @@ def test_pico_bridge_starts_runtime_and_reports_stats(monkeypatch):
     assert stats.device_sn == "fake-sn"
     assert stats.video_enabled is True
     assert stats.video_source == "frames"
+
+
+def test_pico_bridge_can_toggle_video_enabled_at_runtime(monkeypatch):
+    FakeRuntime.instances = []
+    monkeypatch.setattr(bridge_mod, "PicoBridgeRuntime", FakeRuntime)
+
+    bridge = PicoBridge(video="frames", discovery=False)
+    try:
+        bridge.start()
+        runtime = FakeRuntime.instances[0]
+
+        bridge.set_video_enabled(False)
+        assert runtime.video_enabled_calls == [False]
+        assert bridge.stats().video_enabled is False
+
+        bridge.set_video_enabled(True)
+        assert runtime.video_enabled_calls == [False, True]
+        assert bridge.stats().video_enabled is True
+    finally:
+        bridge.close()
+
+
+def test_pico_bridge_rejects_enabling_video_without_source():
+    bridge = PicoBridge(video=None, discovery=False)
+
+    with pytest.raises(RuntimeError, match="configured video source"):
+        bridge.set_video_enabled(True)
 
 
 def test_pico_bridge_wait_frame_uses_internal_store(monkeypatch):

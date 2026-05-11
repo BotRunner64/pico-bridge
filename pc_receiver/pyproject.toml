@@ -17,6 +17,10 @@ dependencies = [
 
 [project.optional-dependencies]
 viz = []
+camera = [
+    "opencv-python>=4.8",
+    "pyrealsense2>=2.56",
+]
 
 [project.scripts]
 pico-bridge-receiver = "pico_bridge.cli:main"

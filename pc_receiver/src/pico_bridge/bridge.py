@@ -46,6 +46,7 @@ class PicoBridge:
         discovery: bool = True,
         advertise_ip: str | None = None,
         video: VideoSource | str | None = None,
+        video_enabled: bool | None = None,
         print_tracking: bool = False,
         history_size: int = 120,
         start_timeout: float = 10.0,
@@ -56,6 +57,9 @@ class PicoBridge:
         self.discovery = bool(discovery)
         self.advertise_ip = advertise_ip
         self.video = _normalize_video_source(video)
+        self.video_enabled = self.video is not None if video_enabled is None else bool(video_enabled)
+        if self.video_enabled and self.video is None:
+            raise ValueError("video_enabled=True requires video='frames' or video='test-pattern'")
         self.print_tracking = print_tracking
         self.start_timeout = float(start_timeout)
         self._frame_store = FrameStore(history_size=history_size)
@@ -136,6 +140,25 @@ class PicoBridge:
             raise RuntimeError('push_video_frame() requires PicoBridge(video="frames")')
         return self._video_frame_source.push(frame)
 
+    def set_video_enabled(self, enabled: bool) -> None:
+        enabled = bool(enabled)
+        if enabled and self.video is None:
+            raise RuntimeError("set_video_enabled(True) requires a configured video source")
+        self.video_enabled = enabled
+
+        runtime = self._runtime
+        loop = self._loop
+        if runtime is None or loop is None or not loop.is_running():
+            return
+
+        coro = runtime.set_video_enabled(enabled)
+        if self._thread is threading.current_thread():
+            loop.create_task(coro)
+            return
+
+        future = asyncio.run_coroutine_threadsafe(coro, loop)
+        future.result()
+
     def stats(self) -> PicoBridgeStats:
         frame_stats = self._frame_store.stats()
         runtime = self._runtime
@@ -149,7 +172,7 @@ class PicoBridge:
             latest_frame_age_s=frame_stats.latest_frame_age_s,
             latest_latency_s=frame_stats.latest_latency_s,
             dropped_ring_frames=frame_stats.dropped_ring_frames,
-            video_enabled=False if status is None else status.video_enabled,
+            video_enabled=self.video_enabled if status is None else status.video_enabled,
             video_running=False if status is None else status.video_running,
             video_source=self.video if status is None else status.video_source,
         )
@@ -163,6 +186,7 @@ class PicoBridge:
             discovery=self.discovery,
             advertise_ip=self.advertise_ip,
             video=self.video,
+            video_enabled=self.video_enabled,
             video_frame_source=self._video_frame_source,
             frame_store=self._frame_store,
             print_tracking=self.print_tracking,

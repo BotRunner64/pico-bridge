@@ -30,6 +30,10 @@ namespace PicoBridge
         [Range(30, 120)]
         public int trackingFps = 72;
 
+        [Header("PC Control")]
+        [SerializeField] private bool allowPcVideoPreview;
+        [SerializeField] private bool autoRequestPcVideoPreview;
+
         [Header("Scene Visuals")]
         public bool hideTrackingVisualsWithoutSignal = true;
 
@@ -50,6 +54,8 @@ namespace PicoBridge
         public UdpDiscovery Discovery => _discovery;
         public WebRtcCameraReceiver WebRtcCamera => _webRtcCamera;
         public bool IsConnected => _tcp != null && _tcp.State == SocketState.Working;
+        public bool AllowPcVideoPreview => allowPcVideoPreview;
+        public bool AutoRequestPcVideoPreview => autoRequestPcVideoPreview;
 
         private void Awake()
         {
@@ -220,8 +226,86 @@ namespace PicoBridge
         private void OnFunction(string functionName, string json)
         {
             Debug.Log($"[PicoBridge] Function: {functionName}");
+            if (functionName == "BridgeControl")
+            {
+                HandleBridgeControl(json);
+                return;
+            }
             if (functionName == "WebRtcOffer" || functionName == "WebRtcIceCandidate")
                 _webRtcCamera?.HandleFunction(functionName, json);
+        }
+
+        private void HandleBridgeControl(string json)
+        {
+            string channel = ExtractString(json, "channel");
+            string type = ExtractString(json, "type");
+            if (channel != "video" || type != "set_policy")
+                return;
+
+            bool enabled = ExtractBool(json, "enabled") ?? false;
+            bool autoPreview = ExtractBool(json, "auto_preview") ?? enabled;
+            ApplyVideoPolicy(enabled, autoPreview);
+        }
+
+        private void ApplyVideoPolicy(bool enabled, bool autoPreview)
+        {
+            allowPcVideoPreview = enabled;
+            autoRequestPcVideoPreview = enabled && autoPreview;
+            if (!allowPcVideoPreview || !autoRequestPcVideoPreview)
+                _webRtcCamera?.StopPreview();
+        }
+
+        private static string ExtractString(string json, string key)
+        {
+            string needle = $"\"{key}\"";
+            int keyIndex = json.IndexOf(needle, System.StringComparison.Ordinal);
+            if (keyIndex < 0) return string.Empty;
+            int colon = json.IndexOf(':', keyIndex + needle.Length);
+            if (colon < 0) return string.Empty;
+            int start = json.IndexOf('"', colon + 1);
+            if (start < 0) return string.Empty;
+            var result = new System.Text.StringBuilder();
+            bool escape = false;
+            for (int i = start + 1; i < json.Length; i++)
+            {
+                char c = json[i];
+                if (escape)
+                {
+                    switch (c)
+                    {
+                        case 'n': result.Append('\n'); break;
+                        case 'r': result.Append('\r'); break;
+                        case 't': result.Append('\t'); break;
+                        case '\\': result.Append('\\'); break;
+                        case '"': result.Append('"'); break;
+                        default: result.Append(c); break;
+                    }
+                    escape = false;
+                }
+                else if (c == '\\')
+                    escape = true;
+                else if (c == '"')
+                    return result.ToString();
+                else
+                    result.Append(c);
+            }
+            return string.Empty;
+        }
+
+        private static bool? ExtractBool(string json, string key)
+        {
+            string needle = $"\"{key}\"";
+            int keyIndex = json.IndexOf(needle, System.StringComparison.Ordinal);
+            if (keyIndex < 0) return null;
+            int colon = json.IndexOf(':', keyIndex + needle.Length);
+            if (colon < 0) return null;
+            int start = colon + 1;
+            while (start < json.Length && char.IsWhiteSpace(json[start])) start++;
+            if (start + 4 <= json.Length && string.Compare(json, start, "true", 0, 4, System.StringComparison.Ordinal) == 0)
+                return true;
+            if (start + 5 <= json.Length && string.Compare(json, start, "false", 0, 5, System.StringComparison.Ordinal) == 0)
+                return false;
+            return null;
         }
 
         /// <summary>

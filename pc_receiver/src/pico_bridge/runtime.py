@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from .camera_request import CameraRequest
+from .control import CONTROL_FUNCTION_NAME, build_video_policy_message
 from .discovery import UdpBroadcaster
 from .frame_store import FrameStore
 from .tcp_server import PicoBridgeServer
@@ -38,6 +39,7 @@ class PicoBridgeRuntime:
         discovery: bool,
         advertise_ip: str | None,
         video: str | None,
+        video_enabled: bool,
         video_frame_source: ExternalVideoFrameSource | None,
         frame_store: FrameStore,
         print_tracking: bool = False,
@@ -49,6 +51,7 @@ class PicoBridgeRuntime:
         self._discovery_enabled = discovery
         self._advertise_ip = advertise_ip
         self._video_source = video
+        self._video_enabled = bool(video_enabled)
         self._video_frame_source = video_frame_source
         self._frame_store = frame_store
         self._print_tracking = print_tracking
@@ -76,6 +79,7 @@ class PicoBridgeRuntime:
             on_function=self._handle_function,
             on_camera_request=self._handle_camera_request,
             on_camera_stop=self._handle_camera_stop,
+            on_client_connected=self._handle_client_connected,
         )
         if self._video_source is not None:
             self._webrtc_sender = WebRtcVideoSender(
@@ -131,10 +135,16 @@ class PicoBridgeRuntime:
         return RuntimeStatus(
             connected=False if server is None else server.connected,
             device_sn="" if server is None else server.device_sn,
-            video_enabled=webrtc_sender is not None,
+            video_enabled=self._video_enabled,
             video_running=False if webrtc_sender is None else webrtc_sender.is_running,
             video_source=self._video_source,
         )
+
+    async def set_video_enabled(self, enabled: bool) -> None:
+        self._video_enabled = bool(enabled)
+        if not self._video_enabled and self._webrtc_sender is not None:
+            await self._webrtc_sender.stop()
+        await self._send_video_policy()
 
     def _handle_tracking(self, data: dict[str, Any]) -> None:
         frame = self._frame_store.append_payload(data)
@@ -153,6 +163,18 @@ class PicoBridgeRuntime:
                 self._schedule_sender_task(sender.handle_ice_candidate(value), "handle WebRTC ICE candidate")
                 return
         log.info("function: %s = %s", name, value)
+
+    async def _handle_client_connected(self) -> None:
+        await self._send_video_policy()
+
+    async def _send_video_policy(self) -> None:
+        server = self._server
+        if server is None or not server.connected:
+            return
+        await server.send_function(
+            CONTROL_FUNCTION_NAME,
+            build_video_policy_message(enabled=self._video_enabled, source=self._video_source),
+        )
 
     @staticmethod
     def _schedule_sender_task(coro: Any, label: str) -> asyncio.Task:
@@ -173,6 +195,9 @@ class PicoBridgeRuntime:
         sender = self._webrtc_sender
         if sender is None:
             log.info("WebRTC camera request ignored because video is disabled")
+            return
+        if not self._video_enabled:
+            log.info("WebRTC camera request ignored because video is disabled by PC policy")
             return
 
         async def start_video() -> None:

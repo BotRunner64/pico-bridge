@@ -199,6 +199,23 @@ def test_disconnect_notifies_camera_stop():
     asyncio.run(run())
 
 
+def test_connect_notifies_client_connected():
+    async def run() -> None:
+        connected: list[bool] = []
+        server = PicoBridgeServer(on_client_connected=lambda: connected.append(True))
+        reader = _FakeReader()
+        writer = _FakeWriter("active")
+        task = asyncio.create_task(server._handle_client(reader, writer))
+        await _wait_until(lambda: server.connected and connected == [True])
+
+        reader.feed_eof()
+        await task
+
+        assert connected == [True]
+
+    asyncio.run(run())
+
+
 def test_heartbeat_send_failure_drops_active_client():
     async def run() -> None:
         stops: list[bool] = []

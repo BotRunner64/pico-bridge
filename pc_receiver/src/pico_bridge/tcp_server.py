@@ -52,6 +52,7 @@ class PicoBridgeServer:
         on_function: FunctionCallback | None = None,
         on_camera_request: CameraRequestCallback | None = None,
         on_camera_stop: Callable[[], Any] | None = None,
+        on_client_connected: Callable[[], Any] | None = None,
         allow_local_clients: bool = False,
     ):
         self.host = host
@@ -60,6 +61,7 @@ class PicoBridgeServer:
         self._on_function = on_function
         self._on_camera_request = on_camera_request
         self._on_camera_stop = on_camera_stop
+        self._on_client_connected = on_client_connected
         self._allow_local_clients = allow_local_clients
         self._server: asyncio.Server | None = None
         self._writer: asyncio.StreamWriter | None = None
@@ -139,6 +141,7 @@ class PicoBridgeServer:
             await self._notify_camera_stop()
 
         log.info("client connected: %s", addr)
+        await self._notify_client_connected()
         parser = PacketParser(accept_head=0x3F)
 
         try:
@@ -214,6 +217,16 @@ class PicoBridgeServer:
                 await result
         except Exception:
             log.exception("camera stop callback failed")
+
+    async def _notify_client_connected(self) -> None:
+        if self._on_client_connected is None:
+            return
+        try:
+            result = self._on_client_connected()
+            if inspect.isawaitable(result):
+                await result
+        except Exception:
+            log.exception("client connected callback failed")
 
     async def _dispatch(self, pkt: Packet, writer: asyncio.StreamWriter) -> None:
         if pkt.cmd == CMD.CONNECT:

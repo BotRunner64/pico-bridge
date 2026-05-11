@@ -57,6 +57,11 @@ class TestWebRtcPattern:
         assert frame.shape == (16, 32, 3)
         assert frame.dtype.name == "uint8"
 
+    def test_make_rgb_test_frame_handles_large_frame_index(self):
+        frame = _make_rgb_test_frame(32, 16, 10_000)
+        assert frame.shape == (16, 32, 3)
+        assert frame.dtype.name == "uint8"
+
     def test_sender_initial_state(self):
         async def send_signal(name, value):
             pass

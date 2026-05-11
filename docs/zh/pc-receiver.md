@@ -19,7 +19,11 @@ cd pc_receiver
 pip install -e .
 ```
 
-核心包不依赖 OpenCV、MuJoCo 或 RealSense。只在运行对应示例时安装这些依赖。
+核心包不依赖 OpenCV、MuJoCo 或 RealSense。只有需要运行使用 webcam 或 RealSense 设备的 CLI 或示例时，才安装 camera extra：
+
+```bash
+pip install -e ".[camera]"
+```
 
 ## 作为其他项目依赖
 
@@ -38,6 +42,8 @@ dependencies = [
 ```bash
 pip install -e /path/to/pico-bridge/pc_receiver
 ```
+
+如果联调需要可选相机依赖，可以使用 `/path/to/pico-bridge/pc_receiver[camera]`。
 
 ## Tracking 示例
 
@@ -69,6 +75,14 @@ with PicoBridge(video="frames") as pico:
 
 `push_video_frame()` 只保存最新帧，不排队，所以高频仿真不会累积显示延迟。头显启动 WebRTC 预览前推入的帧会被缓存，并在预览连接启动后发送。
 
+如果希望启动时不请求 WebRTC 视频，可以把 `video_enabled=False`，之后再调用 `set_video_enabled(True)` 让头显开始请求视频：
+
+```python
+with PicoBridge(video="frames", video_enabled=False) as pico:
+    pico.push_video_frame(render_frame_as_rgb_uint8())
+    pico.set_video_enabled(True)
+```
+
 示例脚本：
 
 ```bash
@@ -77,11 +91,16 @@ python pc_receiver/examples/realsense_camera.py --serial RS123
 python pc_receiver/examples/mujoco_camera.py path/to/model.xml --camera camera_name
 ```
 
-Receiver CLI 仍可用于 tracking 和视频链路自测：
+Receiver CLI 可以通过同一套 SDK 推帧路径直接推送 UVC 摄像头或 RealSense 摄像头：
 
 ```bash
 pico-bridge-receiver -v --video test-pattern --viz
+pico-bridge-receiver -v --camera webcam --viz
+pico-bridge-receiver -v --camera webcam --camera-device /dev/video0 --viz
+pico-bridge-receiver -v --camera realsense --camera-device RS123 --viz
 ```
+
+省略 `--camera-device` 时，webcam 使用索引 `0`，RealSense 使用默认设备。OpenCV（`cv2`）和 `pyrealsense2` 由 `camera` extra 安装。
 
 ## 创建 Receiver
 
@@ -94,6 +113,7 @@ PicoBridge(
     discovery=True,
     advertise_ip=None,
     video=None,
+    video_enabled=None,
     print_tracking=False,
     history_size=120,
     start_timeout=10.0,
@@ -105,6 +125,7 @@ PicoBridge(
 
 - `advertise_ip`：多网卡时指定广播给头显的 PC IPv4。
 - `video`：`None`、`"frames"` 或 `"test-pattern"`。
+- `video_enabled`：初始视频策略。`None` 跟随 `video`；`False` 会让头显在调用 `set_video_enabled(True)` 前不再请求 WebRTC 视频。
 - `print_tracking`：逐帧打印 tracking。
 - `on_raw_tracking`：收到原始 Unity JSON 时调用。
 
