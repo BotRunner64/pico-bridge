@@ -8,11 +8,14 @@ import threading
 from dataclasses import dataclass
 from typing import Any, Callable, Literal
 
+import numpy as np
+
 from .frame_store import FrameStore
 from .frames import PicoFrame
 from .runtime import PicoBridgeRuntime
+from .webrtc_sender import ExternalVideoFrameSource
 
-VideoSource = Literal["test-pattern", "camera", "realsense"]
+VideoSource = Literal["frames", "test-pattern"]
 
 log = logging.getLogger("pico_bridge.bridge")
 
@@ -43,7 +46,6 @@ class PicoBridge:
         discovery: bool = True,
         advertise_ip: str | None = None,
         video: VideoSource | str | None = None,
-        camera_device: str | None = None,
         print_tracking: bool = False,
         history_size: int = 120,
         start_timeout: float = 10.0,
@@ -54,10 +56,10 @@ class PicoBridge:
         self.discovery = bool(discovery)
         self.advertise_ip = advertise_ip
         self.video = _normalize_video_source(video)
-        self.camera_device = camera_device
         self.print_tracking = print_tracking
         self.start_timeout = float(start_timeout)
         self._frame_store = FrameStore(history_size=history_size)
+        self._video_frame_source = ExternalVideoFrameSource() if self.video == "frames" else None
         self._on_raw_tracking = on_raw_tracking
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
@@ -129,6 +131,11 @@ class PicoBridge:
     def recent_frames(self) -> tuple[PicoFrame, ...]:
         return self._frame_store.recent_frames()
 
+    def push_video_frame(self, frame: np.ndarray) -> int:
+        if self._video_frame_source is None:
+            raise RuntimeError('push_video_frame() requires PicoBridge(video="frames")')
+        return self._video_frame_source.push(frame)
+
     def stats(self) -> PicoBridgeStats:
         frame_stats = self._frame_store.stats()
         runtime = self._runtime
@@ -156,7 +163,7 @@ class PicoBridge:
             discovery=self.discovery,
             advertise_ip=self.advertise_ip,
             video=self.video,
-            camera_device=self.camera_device,
+            video_frame_source=self._video_frame_source,
             frame_store=self._frame_store,
             print_tracking=self.print_tracking,
             on_raw_tracking=self._on_raw_tracking,
@@ -188,7 +195,7 @@ class PicoBridge:
 def _normalize_video_source(video: str | None) -> str | None:
     if video in (None, "", "disabled"):
         return None
-    if video not in ("test-pattern", "camera", "realsense"):
+    if video not in ("frames", "test-pattern"):
         raise ValueError(f"unsupported video source: {video!r}")
     return video
 

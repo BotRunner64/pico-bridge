@@ -7,7 +7,7 @@
 <p align="center">
   Stream PICO headset, controller, hand, body, and Motion Tracker data to a PC.
   <br/>
-  Optionally stream PC camera video back to the headset.
+  Optionally stream PC-side RGB video frames back to the headset.
 </p>
 
 <p align="center">
@@ -23,7 +23,7 @@
 
 - **PICO tracking bridge**: headset, controllers, hands, body, and Motion Tracker data.
 - **PC-side Python SDK**: import `PicoBridge` directly from other Python projects.
-- **Optional video return**: stream PC camera / RealSense / test-pattern video back to the headset.
+- **Optional video return**: push MuJoCo / OpenCV / RealSense / test-pattern RGB frames back to the headset.
 - **Built-in 3D Unity mainline**: no URP or Live Preview dependency.
 - **Dependency-friendly PC package**: downstream projects can depend only on `pc_receiver`.
 
@@ -43,7 +43,7 @@
 
 ```bash
 pip install https://github.com/BotRunner64/pico-bridge/releases/download/v0.1.0/pico_bridge-0.1.0-py3-none-any.whl
-pico-bridge-receiver -v --video camera --viz
+pico-bridge-receiver -v --video test-pattern --viz
 ```
 
 **3. Connect**
@@ -68,5 +68,5 @@ Full-body motion capture requires Motion Tracker setup and calibration in the PI
 | Topic | English | 中文 |
 | --- | --- | --- |
 | Documentation Home | [docs/en/README.md](docs/en/README.md) | [docs/zh/README.md](docs/zh/README.md) |
-| PC Receiver API | [pc-receiver.md](docs/en/pc-receiver.md) | [PC 接口](docs/zh/pc-receiver.md) |
+| PC Receiver API and pushed video frames | [pc-receiver.md](docs/en/pc-receiver.md) | [PC 接口和视频帧推送](docs/zh/pc-receiver.md) |
 | Unity Development | [unity-development.md](docs/en/unity-development.md) | [Unity 结构和开发](docs/zh/unity-development.md) |

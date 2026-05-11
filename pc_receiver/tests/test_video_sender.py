@@ -7,19 +7,17 @@ import json
 import sys
 import types
 
+import numpy as np
 import pytest
 
 from pico_bridge.camera_request import CameraRequest
 from pico_bridge.protocol import CMD, HEAD_VR_TO_PC, Packet
 from pico_bridge.tcp_server import PicoBridgeServer
 from pico_bridge.webrtc_sender import (
-    CameraVideoTrack,
-    RealSenseVideoTrack,
+    ExternalVideoFrameSource,
+    ExternalVideoTrack,
     WebRtcVideoSender,
-    _LatestFrameTrack,
-    _MediaStreamError,
     _make_rgb_test_frame,
-    _open_realsense,
 )
 
 
@@ -75,50 +73,6 @@ class TestWebRtcPattern:
         with pytest.raises(ValueError):
             asyncio.run(sender.start(req))
 
-    def test_latest_frame_track_reuses_cached_source_frame(self):
-        class FakeLatestFrameTrack(_LatestFrameTrack):
-            def __init__(self):
-                self.read_count = 0
-                super().__init__(16, 8, 30)
-
-            def _read_source_frame(self):
-                self.read_count += 1
-                frame = _make_rgb_test_frame(16, 8, self.read_count)
-                return av.VideoFrame.from_ndarray(frame, format="rgb24")
-
-        import av
-
-        async def run():
-            track = FakeLatestFrameTrack()
-            try:
-                first = await track.recv()
-                second = await track.recv()
-            finally:
-                track.stop()
-            return first, second, track.read_count
-
-        first, second, read_count = asyncio.run(run())
-
-        assert first.pts == 0
-        assert second.pts == 3000
-        assert read_count >= 1
-
-    def test_latest_frame_track_stop_ends_media_stream(self):
-        class FakeLatestFrameTrack(_LatestFrameTrack):
-            def _read_source_frame(self):
-                frame = _make_rgb_test_frame(16, 8, 0)
-                return av.VideoFrame.from_ndarray(frame, format="rgb24")
-
-        import av
-
-        async def run():
-            track = FakeLatestFrameTrack(16, 8, 30)
-            track.stop()
-            with pytest.raises(_MediaStreamError):
-                await track._latest_frame_or_raise()
-
-        asyncio.run(run())
-
     def test_sender_cleans_up_when_offer_signal_fails(self, monkeypatch):
         peers = []
 
@@ -165,81 +119,58 @@ class TestWebRtcPattern:
         assert len(peers) == 1
         assert peers[0].closed is True
 
-    def test_camera_source_creates_camera_track(self, monkeypatch):
+    def test_external_frame_source_validates_rgb_uint8(self):
+        source = ExternalVideoFrameSource()
+        frame = np.zeros((8, 16, 3), dtype=np.uint8)
+
+        seq = source.push(frame)
+        frame[:, :, :] = 255
+        stored, stored_seq, _ = source.latest()
+
+        assert seq == 1
+        assert stored_seq == 1
+        assert stored is not None
+        assert stored.shape == (8, 16, 3)
+        assert stored.sum() == 0
+
+        with pytest.raises(TypeError):
+            source.push(np.zeros((8, 16, 3), dtype=np.float32))
+        with pytest.raises(ValueError):
+            source.push(np.zeros((8, 16), dtype=np.uint8))
+
+    def test_external_video_track_uses_black_frame_before_push(self):
+        async def run():
+            source = ExternalVideoFrameSource()
+            track = ExternalVideoTrack(source, 16, 8, 30)
+            frame = await track.recv()
+            track.stop()
+            return frame
+
+        frame = asyncio.run(run())
+
+        assert frame.width == 16
+        assert frame.height == 8
+        assert frame.pts == 0
+
+    def test_frames_source_creates_external_track(self):
         async def send_signal(name, value):
             pass
 
-        opened = []
-
-        class FakeContainer:
-            streams = type("Streams", (), {"video": [object()]})()
-
-            def close(self):
-                pass
-
-        def fake_open_camera(device, width, height, fps):
-            opened.append((device, width, height, fps))
-            return FakeContainer()
-
-        monkeypatch.setattr("pico_bridge.webrtc_sender._open_camera", fake_open_camera)
-        sender = WebRtcVideoSender(send_signal, source="camera", camera_device="/dev/video9")
+        source = ExternalVideoFrameSource()
+        sender = WebRtcVideoSender(send_signal, source="frames", frame_source=source)
         track = sender._create_track(CameraRequest(width=640, height=360, fps=24))
-        assert isinstance(track, CameraVideoTrack)
-        assert opened == [("/dev/video9", 640, 360, 24)]
+        assert isinstance(track, ExternalVideoTrack)
+        assert track.source is source
         track.stop()
 
-    def test_realsense_source_creates_realsense_track(self, monkeypatch):
+    def test_frames_source_requires_frame_source(self):
         async def send_signal(name, value):
             pass
 
-        opened = []
+        sender = WebRtcVideoSender(send_signal, source="frames")
 
-        class FakePipeline:
-            def stop(self):
-                pass
-
-        def fake_open_realsense(device, width, height, fps):
-            opened.append((device, width, height, fps))
-            return FakePipeline()
-
-        monkeypatch.setattr("pico_bridge.webrtc_sender._open_realsense", fake_open_realsense)
-        sender = WebRtcVideoSender(send_signal, source="realsense", camera_device="RS123")
-        track = sender._create_track(CameraRequest(width=640, height=480, fps=30))
-        assert isinstance(track, RealSenseVideoTrack)
-        assert opened == [("RS123", 640, 480, 30)]
-        track.stop()
-
-    def test_open_realsense_enables_rgb_color_stream(self, monkeypatch):
-        calls = []
-
-        class FakePipeline:
-            def start(self, config):
-                calls.append(("start", config))
-
-        class FakeConfig:
-            def enable_device(self, serial):
-                calls.append(("device", serial))
-
-            def enable_stream(self, stream, width, height, fmt, fps):
-                calls.append(("stream", stream, width, height, fmt, fps))
-
-        fake_rs = types.SimpleNamespace(
-            pipeline=FakePipeline,
-            config=FakeConfig,
-            stream=types.SimpleNamespace(color="color"),
-            format=types.SimpleNamespace(rgb8="rgb8"),
-        )
-        monkeypatch.setitem(sys.modules, "pyrealsense2", fake_rs)
-
-        pipeline = _open_realsense("RS123", 848, 480, 60)
-
-        assert isinstance(pipeline, FakePipeline)
-        assert calls[:2] == [
-            ("device", "RS123"),
-            ("stream", "color", 848, 480, "rgb8", 60),
-        ]
-        assert calls[2][0] == "start"
-        assert isinstance(calls[2][1], FakeConfig)
+        with pytest.raises(RuntimeError, match="ExternalVideoFrameSource"):
+            sender._create_track(CameraRequest(width=640, height=480, fps=30))
 
 
 class TestServerCameraDispatch:

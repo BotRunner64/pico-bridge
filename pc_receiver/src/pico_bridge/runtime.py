@@ -11,7 +11,7 @@ from .camera_request import CameraRequest
 from .discovery import UdpBroadcaster
 from .frame_store import FrameStore
 from .tcp_server import PicoBridgeServer
-from .webrtc_sender import WebRtcVideoSender
+from .webrtc_sender import ExternalVideoFrameSource, WebRtcVideoSender
 
 log = logging.getLogger("pico_bridge.runtime")
 
@@ -38,7 +38,7 @@ class PicoBridgeRuntime:
         discovery: bool,
         advertise_ip: str | None,
         video: str | None,
-        camera_device: str | None,
+        video_frame_source: ExternalVideoFrameSource | None,
         frame_store: FrameStore,
         print_tracking: bool = False,
         on_raw_tracking: RawTrackingCallback | None = None,
@@ -49,7 +49,7 @@ class PicoBridgeRuntime:
         self._discovery_enabled = discovery
         self._advertise_ip = advertise_ip
         self._video_source = video
-        self._camera_device = camera_device
+        self._video_frame_source = video_frame_source
         self._frame_store = frame_store
         self._print_tracking = print_tracking
         self._on_raw_tracking = on_raw_tracking
@@ -81,7 +81,7 @@ class PicoBridgeRuntime:
             self._webrtc_sender = WebRtcVideoSender(
                 server_send_function,
                 source=self._video_source,
-                camera_device=self._camera_device,
+                frame_source=self._video_frame_source,
             )
 
         self._broadcaster = UdpBroadcaster(

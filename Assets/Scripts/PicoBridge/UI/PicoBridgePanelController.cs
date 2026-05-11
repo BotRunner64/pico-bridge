@@ -201,13 +201,13 @@ namespace PicoBridge.UI
             if (view.cameraStatusText != null)
             {
                 if (!connected)
-                    view.cameraStatusText.text = "Camera idle";
+                    view.cameraStatusText.text = "Video idle";
                 else if (hasSignal)
                     view.cameraStatusText.text = camera.LastFrameIntervalMs > 0f
-                        ? $"Camera live  {camera.FrameCount}  {camera.LastFrameIntervalMs:0} ms"
-                        : $"Camera live  {camera.FrameCount}";
+                        ? $"Video live  {camera.FrameCount}  {camera.LastFrameIntervalMs:0} ms"
+                        : $"Video live  {camera.FrameCount}";
                 else
-                    view.cameraStatusText.text = camera != null ? camera.Status : "Camera waiting";
+                    view.cameraStatusText.text = camera != null ? camera.Status : "Video waiting";
             }
         }
 

@@ -1,12 +1,12 @@
 # PICO Bridge Documentation
 
-PICO Bridge streams headset, controller, hand, body, and Motion Tracker data from PICO 4 / PICO 4 Ultra to a PC, and can optionally stream PC camera video back to the headset.
+PICO Bridge streams headset, controller, hand, body, and Motion Tracker data from PICO 4 / PICO 4 Ultra to a PC, and can optionally stream PC-side RGB video frames back to the headset.
 
 ## Documentation Index
 
 | Topic | Description |
 | --- | --- |
-| [PC Receiver API](pc-receiver.md) | Python package installation, downstream dependency usage, `PicoBridge` API, frame fields, and coordinate semantics. |
+| [PC Receiver API](pc-receiver.md) | Python package installation, downstream dependency usage, `PicoBridge` API, pushed video frames, frame fields, and coordinate semantics. |
 | [Unity Development](unity-development.md) | Unity version, project structure, editor menu, development rules, and validation steps. |
 
 ## Quick Start
@@ -19,7 +19,7 @@ PICO Bridge streams headset, controller, hand, body, and Motion Tracker data fro
 
 ```bash
 pip install https://github.com/BotRunner64/pico-bridge/releases/download/v0.1.0/pico_bridge-0.1.0-py3-none-any.whl
-pico-bridge-receiver -v --video camera --viz
+pico-bridge-receiver -v --video test-pattern --viz
 ```
 
 6. Connect to the PC receiver from the PicoBridge panel in the headset.

@@ -62,7 +62,6 @@ async def _run(args: argparse.Namespace) -> None:
         discovery=not args.no_discovery,
         advertise_ip=args.advertise_ip,
         video=args.video,
-        camera_device=args.camera_device,
         print_tracking=args.print_tracking,
         on_raw_tracking=_push_visualiser if viz_enabled else None,
     )
@@ -121,14 +120,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--video",
-        choices=["disabled", "test-pattern", "camera", "realsense"],
+        choices=["disabled", "test-pattern"],
         default="disabled",
-        help="Video mode: disabled, test-pattern, camera (webcam), or realsense (RGB color stream)",
-    )
-    parser.add_argument(
-        "--camera-device",
-        default=None,
-        help="Camera device path/name for --video=camera, or RealSense serial for --video=realsense",
+        help="Video mode: disabled or test-pattern. Use the Python API for pushed video frames.",
     )
     parser.add_argument(
         "--no-discovery",

@@ -60,7 +60,7 @@ namespace PicoBridge.Camera
             _lastFrameAt = -1f;
             _lastFrameIntervalMs = 0f;
             EnsureWebRtcUpdateLoop();
-            string cameraJson = $"{{\"codec\":\"webrtc\",\"source\":\"test-pattern\",\"width\":{width},\"height\":{height},\"fps\":{fps},\"bitrate\":{bitrate}}}";
+            string cameraJson = $"{{\"codec\":\"webrtc\",\"source\":\"frames\",\"width\":{width},\"height\":{height},\"fps\":{fps},\"bitrate\":{bitrate}}}";
             _tcp.SendFunction("StartReceivePcCamera", cameraJson);
             Debug.Log("[WebRtcCameraReceiver] Sent StartReceivePcCamera codec=webrtc");
         }

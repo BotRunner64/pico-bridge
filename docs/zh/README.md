@@ -1,12 +1,12 @@
 # PICO Bridge 文档
 
-PICO Bridge 把 PICO 4 / PICO 4 Ultra 的头显、手柄、手部、身体和 Motion Tracker 数据发送到 PC，并支持按需把 PC 摄像头画面回传到头显。
+PICO Bridge 把 PICO 4 / PICO 4 Ultra 的头显、手柄、手部、身体和 Motion Tracker 数据发送到 PC，并支持按需把 PC 端 RGB 视频帧回传到头显。
 
 ## 文档索引
 
 | 主题 | 说明 |
 | --- | --- |
-| [PC 接口](pc-receiver.md) | Python 包安装、下游项目依赖方式、`PicoBridge` API、帧字段和坐标语义。 |
+| [PC 接口](pc-receiver.md) | Python 包安装、下游项目依赖方式、`PicoBridge` API、视频帧推送、帧字段和坐标语义。 |
 | [Unity 结构和开发](unity-development.md) | Unity 版本、项目结构、编辑器菜单、开发规则和验证步骤。 |
 
 ## 快速开始
@@ -19,7 +19,7 @@ PICO Bridge 把 PICO 4 / PICO 4 Ultra 的头显、手柄、手部、身体和 Mo
 
 ```bash
 pip install https://github.com/BotRunner64/pico-bridge/releases/download/v0.1.0/pico_bridge-0.1.0-py3-none-any.whl
-pico-bridge-receiver -v --video camera --viz
+pico-bridge-receiver -v --video test-pattern --viz
 ```
 
 6. 在头显内 PicoBridge 面板连接 PC receiver。

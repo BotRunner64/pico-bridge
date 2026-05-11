@@ -4,6 +4,8 @@ import asyncio
 import threading
 from types import SimpleNamespace
 
+import numpy as np
+import pytest
 import pico_bridge.bridge as bridge_mod
 from pico_bridge import HAND_JOINT_NAMES, PicoBridge
 
@@ -47,17 +49,17 @@ def test_pico_bridge_starts_runtime_and_reports_stats(monkeypatch):
     FakeRuntime.instances = []
     monkeypatch.setattr(bridge_mod, "PicoBridgeRuntime", FakeRuntime)
 
-    with PicoBridge(video="realsense", discovery=False, camera_device="RS123") as bridge:
+    with PicoBridge(video="frames", discovery=False) as bridge:
         runtime = FakeRuntime.instances[0]
-        assert runtime.kwargs["video"] == "realsense"
+        assert runtime.kwargs["video"] == "frames"
         assert runtime.kwargs["discovery"] is False
-        assert runtime.kwargs["camera_device"] == "RS123"
+        assert runtime.kwargs["video_frame_source"] is not None
         stats = bridge.stats()
 
     assert stats.connected is True
     assert stats.device_sn == "fake-sn"
     assert stats.video_enabled is True
-    assert stats.video_source == "realsense"
+    assert stats.video_source == "frames"
 
 
 def test_pico_bridge_wait_frame_uses_internal_store(monkeypatch):
@@ -70,6 +72,27 @@ def test_pico_bridge_wait_frame_uses_internal_store(monkeypatch):
 
     assert frame.timestamp_ns == 99
     assert frame.seq == 1
+
+
+def test_pico_bridge_push_video_frame_requires_frames_video():
+    bridge = PicoBridge(video=None, discovery=False)
+
+    with pytest.raises(RuntimeError, match='video="frames"'):
+        bridge.push_video_frame(np.zeros((4, 8, 3), dtype=np.uint8))
+
+
+def test_pico_bridge_push_video_frame_stores_latest_frame():
+    bridge = PicoBridge(video="frames", discovery=False)
+    frame = np.zeros((4, 8, 3), dtype=np.uint8)
+
+    seq = bridge.push_video_frame(frame)
+    frame[:, :, :] = 255
+    stored, stored_seq, _ = bridge._video_frame_source.latest()
+
+    assert seq == 1
+    assert stored_seq == 1
+    assert stored is not None
+    assert stored.sum() == 0
 
 
 def test_close_keeps_thread_reference_when_runtime_does_not_stop():

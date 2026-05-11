@@ -2,7 +2,7 @@
 
 ## 概览
 
-PC 端推荐使用同步 `PicoBridge` API 读取最新 tracking 帧。
+PC 端推荐使用同步 `PicoBridge` API 读取最新 tracking 帧。同一个 SDK 也可以通过 WebRTC 把用户提供的 RGB 视频帧推送到头显。
 
 ## 安装
 
@@ -19,11 +19,7 @@ cd pc_receiver
 pip install -e .
 ```
 
-PC receiver 支持 x86 和 ARM PC 架构。在 ARM 上使用 RealSense 视频时，需要通过 Conda 安装 RealSense Python 依赖：
-
-```bash
-conda install -c conda-forge pyrealsense2
-```
+核心包不依赖 OpenCV、MuJoCo 或 RealSense。只在运行对应示例时安装这些依赖。
 
 ## 作为其他项目依赖
 
@@ -43,14 +39,14 @@ dependencies = [
 pip install -e /path/to/pico-bridge/pc_receiver
 ```
 
-## 最小示例
+## Tracking 示例
 
 启动 receiver，等待一帧，并读取常用 tracking 字段：
 
 ```python
 from pico_bridge import PicoBridge
 
-with PicoBridge(video="camera") as pico:
+with PicoBridge() as pico:
     frame = pico.wait_frame(timeout=2.0)
     print(frame.head.position)
     print(frame.body.active, frame.body.joints.shape)
@@ -58,7 +54,36 @@ with PicoBridge(video="camera") as pico:
     print(pico.stats())
 ```
 
-## 创建
+## 推送视频帧
+
+使用 `video="frames"` 推送任意 RGB 图像，例如 MuJoCo 渲染画面或 OpenCV 捕获帧。`push_video_frame()` 只接受 dtype 为 `uint8`、shape 为 `(height, width, 3)`、通道顺序为 RGB 的 `numpy.ndarray`。
+
+```python
+from pico_bridge import PicoBridge
+
+with PicoBridge(video="frames") as pico:
+    while True:
+        rgb = render_frame_as_rgb_uint8()
+        pico.push_video_frame(rgb)
+```
+
+`push_video_frame()` 只保存最新帧，不排队，所以高频仿真不会累积显示延迟。头显启动 WebRTC 预览前推入的帧会被缓存，并在预览连接启动后发送。
+
+示例脚本：
+
+```bash
+python pc_receiver/examples/opencv_camera.py --device 0
+python pc_receiver/examples/realsense_camera.py --serial RS123
+python pc_receiver/examples/mujoco_camera.py path/to/model.xml --camera camera_name
+```
+
+Receiver CLI 仍可用于 tracking 和视频链路自测：
+
+```bash
+pico-bridge-receiver -v --video test-pattern --viz
+```
+
+## 创建 Receiver
 
 使用以下选项创建 receiver：
 
@@ -69,7 +94,6 @@ PicoBridge(
     discovery=True,
     advertise_ip=None,
     video=None,
-    camera_device=None,
     print_tracking=False,
     history_size=120,
     start_timeout=10.0,
@@ -80,8 +104,7 @@ PicoBridge(
 常用参数：
 
 - `advertise_ip`：多网卡时指定广播给头显的 PC IPv4。
-- `video`：`None`、`"test-pattern"`、`"camera"`、`"realsense"`。
-- `camera_device`：摄像头设备路径或 RealSense 序列号。
+- `video`：`None`、`"frames"` 或 `"test-pattern"`。
 - `print_tracking`：逐帧打印 tracking。
 - `on_raw_tracking`：收到原始 Unity JSON 时调用。
 

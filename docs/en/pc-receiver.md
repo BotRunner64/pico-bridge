@@ -2,7 +2,7 @@
 
 ## Overview
 
-Use the synchronous `PicoBridge` API on the PC side to read the latest tracking frames.
+Use the synchronous `PicoBridge` API on the PC side to read the latest tracking frames. The same SDK can also push user-provided RGB video frames to the headset over WebRTC.
 
 ## Installation
 
@@ -12,22 +12,18 @@ Install the PC receiver from the wheel attached to the GitHub Release:
 pip install https://github.com/BotRunner64/pico-bridge/releases/download/v0.1.0/pico_bridge-0.1.0-py3-none-any.whl
 ```
 
-For local development inside this repository, install from the package directory:
+For local development inside this repository, install from the PC receiver package directory:
 
 ```bash
 cd pc_receiver
 pip install -e .
 ```
 
-The PC receiver supports both x86 and ARM PC architectures. When using RealSense video on ARM, install the RealSense Python dependency with Conda:
+The core package does not depend on OpenCV, MuJoCo, or RealSense. Install those dependencies only for the examples that need them.
 
-```bash
-conda install -c conda-forge pyrealsense2
-```
+## As a Dependency
 
-## Dependency From Another Project
-
-If another project only needs the PC SDK and does not need the Unity project, depend on the release wheel directly:
+If another project only needs the PC SDK and not the Unity project, depend on the release wheel directly:
 
 ```toml
 dependencies = [
@@ -35,7 +31,7 @@ dependencies = [
 ]
 ```
 
-The package version follows the PICO/APK release version. For example, `pico_bridge-0.1.0-py3-none-any.whl` matches the `v0.1.0` APK release. This wheel install path downloads only the PC Python package, not the Unity project.
+Package versions match the PICO/APK release version. For example, `pico_bridge-0.1.0-py3-none-any.whl` corresponds to the `v0.1.0` APK release. Installing the wheel downloads only the PC-side Python package, not the Unity project.
 
 For local integration testing, install only the subdirectory:
 
@@ -43,14 +39,14 @@ For local integration testing, install only the subdirectory:
 pip install -e /path/to/pico-bridge/pc_receiver
 ```
 
-## Minimal Example
+## Tracking Example
 
 Start the receiver, wait for one frame, and read common tracking fields:
 
 ```python
 from pico_bridge import PicoBridge
 
-with PicoBridge(video="camera") as pico:
+with PicoBridge() as pico:
     frame = pico.wait_frame(timeout=2.0)
     print(frame.head.position)
     print(frame.body.active, frame.body.joints.shape)
@@ -58,7 +54,36 @@ with PicoBridge(video="camera") as pico:
     print(pico.stats())
 ```
 
-## Construction
+## Pushed Video Frames
+
+Use `video="frames"` to push arbitrary RGB images, such as MuJoCo renders or frames captured by OpenCV. `push_video_frame()` accepts only `numpy.ndarray` frames with dtype `uint8` and shape `(height, width, 3)` in RGB channel order.
+
+```python
+from pico_bridge import PicoBridge
+
+with PicoBridge(video="frames") as pico:
+    while True:
+        rgb = render_frame_as_rgb_uint8()
+        pico.push_video_frame(rgb)
+```
+
+`push_video_frame()` stores only the latest frame. It does not queue frames, so a fast simulator will not build up display latency. Frames pushed before the headset starts the WebRTC preview are cached and sent once the preview connection starts.
+
+Example scripts:
+
+```bash
+python pc_receiver/examples/opencv_camera.py --device 0
+python pc_receiver/examples/realsense_camera.py --serial RS123
+python pc_receiver/examples/mujoco_camera.py path/to/model.xml --camera camera_name
+```
+
+The receiver CLI is still useful for tracking and video-link testing:
+
+```bash
+pico-bridge-receiver -v --video test-pattern --viz
+```
+
+## Creating a Receiver
 
 Create a receiver with the following options:
 
@@ -69,7 +94,6 @@ PicoBridge(
     discovery=True,
     advertise_ip=None,
     video=None,
-    camera_device=None,
     print_tracking=False,
     history_size=120,
     start_timeout=10.0,
@@ -79,11 +103,10 @@ PicoBridge(
 
 Common parameters:
 
-- `advertise_ip`: PC IPv4 address advertised to the headset when the PC has multiple network interfaces.
-- `video`: `None`, `"test-pattern"`, `"camera"`, or `"realsense"`.
-- `camera_device`: Camera device path or RealSense serial number.
+- `advertise_ip`: PC IPv4 address advertised to the headset when multiple network interfaces are present.
+- `video`: `None`, `"frames"`, or `"test-pattern"`.
 - `print_tracking`: Print tracking data every frame.
-- `on_raw_tracking`: Called when raw Unity JSON is received.
+- `on_raw_tracking`: Called with the raw Unity JSON when a tracking frame arrives.
 
 ## Reading Frames
 
@@ -115,11 +138,11 @@ frame.controllers.left.buttons
 frame.raw
 ```
 
-Coordinates and data preserve native PICO/Unity semantics: coordinate space `pico_unity`, units in meters, and quaternion order `xyzw`. Downstream projects should convert coordinate systems, joint order, and robot semantics themselves.
+Coordinates and data keep native PICO/Unity semantics: coordinate space `pico_unity`, units meters, quaternion order `xyzw`. Downstream projects are responsible for converting coordinate systems, joint orders, and robot semantics.
 
-When one tracking category is unavailable, the SDK returns a fixed-shape zero array and sets `active=False` to mark it as not consumable.
+When a tracking family is unavailable, the SDK returns fixed-shape zero arrays and marks the family with `active=False`.
 
 ## Language
 
 - [中文](../zh/pc-receiver.md)
-- [Documentation home](README.md)
+- [Docs Home](README.md)

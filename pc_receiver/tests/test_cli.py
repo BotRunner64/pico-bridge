@@ -17,7 +17,7 @@ def _stats(**overrides):
         "dropped_ring_frames": 0,
         "video_enabled": True,
         "video_running": False,
-        "video_source": "realsense",
+        "video_source": "frames",
     }
     values.update(overrides)
     return types.SimpleNamespace(**values)
@@ -34,7 +34,7 @@ def test_format_status_includes_compact_runtime_fields():
 
     assert line == (
         "status connected=1 sn=SN123 fps=59.8 seq=42 "
-        "age=0.02s video=realsense/idle drops=0"
+        "age=0.02s video=frames/idle drops=0"
     )
 
 

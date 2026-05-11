@@ -1,4 +1,4 @@
-"""Camera preview request types for WebRTC video."""
+"""Video preview request types for WebRTC video."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ class CameraRequest:
     fps: int = 30
     bitrate: int = 8 * 1024 * 1024
     codec: str = "webrtc"
-    source: str = "test-pattern"
+    source: str = "frames"
 
     @classmethod
     def from_json(cls, obj: dict[str, Any]) -> "CameraRequest":
@@ -32,5 +32,5 @@ class CameraRequest:
             fps=int(obj.get("fps", 30)),
             bitrate=int(obj.get("bitrate", 8 * 1024 * 1024)),
             codec=codec,
-            source=str(obj.get("source", "test-pattern")),
+            source=str(obj.get("source", "frames")),
         )
