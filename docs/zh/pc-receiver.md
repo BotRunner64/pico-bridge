@@ -25,6 +25,17 @@ pip install -e .
 pip install -e ".[camera]"
 ```
 
+## 支持的架构
+
+PC receiver 支持 x86 和 Arm 架构的机器，前提是所需 Python 依赖可用。
+
+在需要 RealSense 支持的 Arm 架构机器上，请在当前 Conda 环境中使用 conda-forge 安装 `pyrealsense2`，不要使用 pip 包：
+
+```bash
+pip uninstall pyrealsense2
+conda install -c conda-forge pyrealsense2
+```
+
 ## 作为其他项目依赖
 
 如果其他项目只需要 PC SDK，不需要 Unity 工程，可以直接依赖 release wheel：

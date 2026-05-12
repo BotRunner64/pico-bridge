@@ -25,6 +25,17 @@ The core package does not depend on OpenCV, MuJoCo, or RealSense. Install the ca
 pip install -e ".[camera]"
 ```
 
+## Supported Architectures
+
+The PC receiver supports x86 and Arm machines when the required Python dependencies are available.
+
+On Arm machines that need RealSense support, install `pyrealsense2` from conda-forge in the active Conda environment instead of using the pip package:
+
+```bash
+pip uninstall pyrealsense2
+conda install -c conda-forge pyrealsense2
+```
+
 ## As a Dependency
 
 If another project only needs the PC SDK and not the Unity project, depend on the release wheel directly:
