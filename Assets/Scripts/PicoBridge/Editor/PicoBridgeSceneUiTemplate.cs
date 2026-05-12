@@ -160,6 +160,9 @@ namespace PicoBridge.Editor
             var scaler = canvas.GetComponent<CanvasScaler>();
             if (scaler != null)
                 scaler.dynamicPixelsPerUnit = Mathf.Max(scaler.dynamicPixelsPerUnit, 12f);
+
+            if (canvas.GetComponent<HeadGazeCanvasFollower>() == null)
+                canvas.gameObject.AddComponent<HeadGazeCanvasFollower>();
         }
 
         private static void EnsureCanvasInputComponents(Canvas canvas)

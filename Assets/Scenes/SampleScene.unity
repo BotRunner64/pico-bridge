@@ -2144,6 +2144,7 @@ GameObject:
   - component: {fileID: 1286174839}
   - component: {fileID: 1286174838}
   - component: {fileID: 1286174842}
+  - component: {fileID: 1286174843}
   m_Layer: 5
   m_Name: '[Building Block] Controller Canvas Interaction Canvas'
   m_TagString: Untagged
@@ -2253,6 +2254,24 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   m_RaycastTriggerInteraction: 1
+--- !u!114 &1286174843
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1286174837}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b7d2f10a73a94e14a91051a8f73af3d5, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  head: {fileID: 0}
+  followHeadGaze: 1
+  distance: 1.2
+  verticalOffset: 0
+  followSpeed: 10
+  keepWorldUp: 1
 --- !u!1 &1404124548
 GameObject:
   m_ObjectHideFlags: 0
