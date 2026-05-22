@@ -8,6 +8,7 @@
 /[Uu]ser[Ss]ettings/
 /MemoryCaptures/
 /Recordings/
+/recordings/
 
 # Unity cache and generated files
 *.pidb
