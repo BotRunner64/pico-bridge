@@ -112,8 +112,9 @@ class PacketParser:
 
         # validate END byte
         if self._buf[total - 1] != END_BYTE:
-            # bad packet — discard HEAD and rescan
-            self._buf.pop(0)
+            # Bad packet with a plausible length. Drop the whole candidate so
+            # bytes inside its timestamp/payload cannot be mistaken for HEAD.
+            del self._buf[:total]
             return self._try_parse()
 
         payload = bytes(self._buf[HEADER_SIZE : HEADER_SIZE + data_len])

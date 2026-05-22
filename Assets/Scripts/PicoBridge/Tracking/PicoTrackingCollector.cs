@@ -12,6 +12,8 @@ namespace PicoBridge.Tracking
     /// </summary>
     public class PicoTrackingCollector
     {
+        private const int BodyJointCount = (int)BodyTrackerRole.ROLE_NUM;
+
         public bool HeadEnabled = true;
         public bool ControllerEnabled = true;
         public bool HandTrackingEnabled = true;
@@ -72,8 +74,15 @@ namespace PicoBridge.Tracking
             int frameIdx = 0;
             PXR_System.GetPredictedMainSensorStateNew(ref state, ref frameIdx);
 
-            var p = state.pose.position;
-            var r = state.pose.orientation;
+            Vector3 p = ToUnityPosition(
+                state.pose.position.x,
+                state.pose.position.y,
+                state.pose.position.z);
+            Quaternion r = ToUnityRotation(
+                state.pose.orientation.x,
+                state.pose.orientation.y,
+                state.pose.orientation.z,
+                state.pose.orientation.w);
             _sb.Append(",\"Head\":{\"pose\":\"");
             AppendPose(p.x, p.y, p.z, r.x, r.y, r.z, r.w);
             _sb.Append($"\",\"status\":{state.status}}}");
@@ -96,6 +105,8 @@ namespace PicoBridge.Tracking
         {
             Vector3 pos = PXR_Input.GetControllerPredictPosition(ctrl, predictTimeMs);
             Quaternion rot = PXR_Input.GetControllerPredictRotation(ctrl, predictTimeMs);
+            pos = ToUnityPosition(pos.x, pos.y, pos.z);
+            rot = ToUnityRotation(rot.x, rot.y, rot.z, rot.w);
 
             _sb.Append($"\"{side}\":{{\"pose\":\"");
             AppendPose(pos.x, pos.y, pos.z, rot.x, rot.y, rot.z, rot.w);
@@ -182,35 +193,41 @@ namespace PicoBridge.Tracking
 
         private void AppendBody()
         {
-            _sb.Append(",\"Body\":{\"joints\":[");
-
             bool supported = false;
             PXR_MotionTracking.GetBodyTrackingSupported(ref supported);
 
             int count = 0;
+            BodyTrackingData data = default;
+
             if (supported && TrackingSignalStatus.HasValidSignal(TrackingSignalKind.Body))
             {
                 BodyTrackingGetDataInfo getInfo = new BodyTrackingGetDataInfo { displayTime = 0 };
-                BodyTrackingData data = new BodyTrackingData();
-                data.roleDatas = new BodyTrackingRoleData[24];
+                data = new BodyTrackingData();
+                data.roleDatas = new BodyTrackingRoleData[BodyJointCount];
                 int result = PXR_MotionTracking.GetBodyTrackingData(ref getInfo, ref data);
 
                 if (result == 0 && data.roleDatas != null)
                 {
-                    for (int i = 0; i < data.roleDatas.Length; i++)
-                    {
-                        if (i > 0) _sb.Append(',');
-                        var rd = data.roleDatas[i];
-                        _sb.Append("{\"p\":\"");
-                        AppendPoseDouble(
-                            rd.localPose.PosX, rd.localPose.PosY, rd.localPose.PosZ,
-                            rd.localPose.RotQx, rd.localPose.RotQy, rd.localPose.RotQz, rd.localPose.RotQw);
-                        _sb.Append($"\",\"t\":{(int)rd.bodyAction}");
-                        AppendEmptyBodyVelocity();
-                        _sb.Append('}');
-                        count++;
-                    }
+                    count = Mathf.Min(data.roleDatas.Length, BodyJointCount);
                 }
+            }
+
+            _sb.Append(",\"Body\":{");
+            _sb.Append("\"poseSpace\":\"pico_body_local\"");
+            _sb.Append(",\"alignment\":\"none\"");
+            _sb.Append(",\"joints\":[");
+
+            for (int i = 0; i < count; i++)
+            {
+                if (i > 0) _sb.Append(',');
+                var rd = data.roleDatas[i];
+                _sb.Append("{\"p\":\"");
+                AppendPose(
+                    (float)rd.localPose.PosX, (float)rd.localPose.PosY, (float)rd.localPose.PosZ,
+                    (float)rd.localPose.RotQx, (float)rd.localPose.RotQy, (float)rd.localPose.RotQz, (float)rd.localPose.RotQw);
+                _sb.Append($"\",\"t\":{(int)rd.bodyAction}");
+                AppendEmptyBodyVelocity();
+                _sb.Append('}');
             }
 
             _sb.Append($"],\"len\":{count}}}");
@@ -229,30 +246,23 @@ namespace PicoBridge.Tracking
         {
             _sb.Append(",\"Motion\":{\"joints\":[");
             // Motion tracker enumeration requires runtime tracker IDs
-            // Placeholder — will be populated when trackers are connected
+            // Placeholder - will be populated when trackers are connected.
             _sb.Append("],\"len\":0}");
         }
 
         // ── helpers ───────────────────────────────────────
 
-        private void AppendPose(float x, float y, float z, float qx, float qy, float qz, float qw)
+        private static Vector3 ToUnityPosition(float x, float y, float z)
         {
-            AppendPoseComponent(x);
-            _sb.Append(',');
-            AppendPoseComponent(y);
-            _sb.Append(',');
-            AppendPoseComponent(z);
-            _sb.Append(',');
-            AppendPoseComponent(qx);
-            _sb.Append(',');
-            AppendPoseComponent(qy);
-            _sb.Append(',');
-            AppendPoseComponent(qz);
-            _sb.Append(',');
-            AppendPoseComponent(qw);
+            return new Vector3(x, y, -z);
         }
 
-        private void AppendPoseDouble(double x, double y, double z, double qx, double qy, double qz, double qw)
+        private static Quaternion ToUnityRotation(float x, float y, float z, float w)
+        {
+            return new Quaternion(x, y, -z, -w);
+        }
+
+        private void AppendPose(float x, float y, float z, float qx, float qy, float qz, float qw)
         {
             AppendPoseComponent(x);
             _sb.Append(',');
@@ -274,11 +284,6 @@ namespace PicoBridge.Tracking
             _sb.Append(JsonNumber(value, "F6"));
         }
 
-        private void AppendPoseComponent(double value)
-        {
-            _sb.Append(JsonNumber(value, "F6"));
-        }
-
         private void AppendJsonNumber(float value)
         {
             _sb.Append(JsonNumber(value, "F4"));
@@ -287,13 +292,6 @@ namespace PicoBridge.Tracking
         private static string JsonNumber(float value, string format)
         {
             if (float.IsNaN(value) || float.IsInfinity(value))
-                return "0";
-            return value.ToString(format, CultureInfo.InvariantCulture);
-        }
-
-        private static string JsonNumber(double value, string format)
-        {
-            if (double.IsNaN(value) || double.IsInfinity(value))
                 return "0";
             return value.ToString(format, CultureInfo.InvariantCulture);
         }

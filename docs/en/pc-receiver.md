@@ -172,6 +172,8 @@ frame.raw
 
 Coordinates and data keep native PICO/Unity semantics: coordinate space `pico_unity`, units meters, quaternion order `xyzw`. Downstream projects are responsible for converting coordinate systems, joint orders, and robot semantics.
 
+Body joint poses exposed through `frame.body.joints` come from PICO body tracking `localPose` values. The Unity sender does not force-fit the body skeleton to the headset pose; consumers that need a shared application space should apply an explicit calibration transform.
+
 When a tracking family is unavailable, the SDK returns fixed-shape zero arrays and marks the family with `active=False`.
 
 ## Language

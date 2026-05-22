@@ -172,6 +172,8 @@ frame.raw
 
 坐标和数据保持 PICO/Unity 原生语义：坐标空间 `pico_unity`，单位 meters，四元数顺序 `xyzw`。下游项目自己转换坐标系、关节顺序和机器人语义。
 
+`frame.body.joints` 暴露的 body 关节姿态来自 PICO body tracking 的 `localPose`。Unity 发送端不会把 body skeleton 强行拟合到 headset pose；如果下游需要统一的应用坐标空间，应使用显式校准变换。
+
 某类 tracking 不可用时，SDK 返回固定 shape 零数组，并用 `active=False` 表示不可消费。
 
 ## 语言
