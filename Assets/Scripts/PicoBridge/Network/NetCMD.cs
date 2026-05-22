@@ -1,7 +1,7 @@
 namespace PicoBridge.Network
 {
     /// <summary>
-    /// Protocol constants — matches XRobo NetCMD.
+    /// Protocol constants for bridge packets.
     /// </summary>
     public static class NetCMD
     {

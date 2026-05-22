@@ -71,6 +71,7 @@ __pycache__/
 *.py[cod]
 .venv/
 *.egg-info/
+pico_bridge_recordings/
 
 # Worktrees
 .worktrees/

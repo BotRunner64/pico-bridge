@@ -2,7 +2,7 @@ namespace PicoBridge.Network
 {
     /// <summary>
     /// Ring buffer for TCP stream accumulation.
-    /// Simplified from XRoboToolkit ByteBuffer.
+    /// Ring buffer for TCP stream accumulation.
     /// </summary>
     public class ByteBuffer
     {

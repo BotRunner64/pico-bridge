@@ -1,4 +1,4 @@
-"""UDP broadcast for server discovery — mirrors XRobo protocol.
+"""UDP broadcast for server discovery.
 
 PC server broadcasts its IP on UDP port 29888 using CMD 0x7E (TCPIP).
 VR headset listens on that port and auto-discovers available servers.

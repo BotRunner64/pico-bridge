@@ -113,6 +113,18 @@ pico-bridge-receiver -v --camera realsense --camera-device RS123 --viz
 
 省略 `--camera-device` 时，webcam 使用索引 `0`，RealSense 使用默认设备。OpenCV（`cv2`）和 `pyrealsense2` 由 `camera` extra 安装。
 
+## CLI 录制
+
+使用 `--record` 捕获原始 tracking 帧，方便调试：
+
+```bash
+pico-bridge-receiver --record
+pico-bridge-receiver --record recordings/session.jsonl
+pico-bridge-receiver --record recordings/
+```
+
+Receiver 会写入 newline-delimited JSON。第一行是 metadata，之后每一行是一帧 tracking，包含 receiver 侧序号、接收时间戳和原始 Unity payload。`--record` 不带值时，文件会用带时间戳的名称创建在 `pico_bridge_recordings/` 下。传入目录时，也会在该目录内创建带时间戳的文件。每帧都会立即 flush，所以调试会话中断后，已经收到的数据仍会保留。
+
 ## 创建 Receiver
 
 使用以下选项创建 receiver：
@@ -170,9 +182,9 @@ frame.controllers.left.buttons
 frame.raw
 ```
 
-坐标和数据保持 PICO/Unity 原生语义：坐标空间 `pico_unity`，单位 meters，四元数顺序 `xyzw`。下游项目自己转换坐标系、关节顺序和机器人语义。
+坐标和数据使用 PICO native tracking 约定：坐标空间 `pico_native`，单位 meters，四元数顺序 `xyzw`。Head、controller 和 hand pose 直接序列化 PICO/PXR pose 值。Body pose 使用 PICO body `localPose`，并对 body 的 Z 位置和四元数 Z/W 分量取反，以匹配 bridge 传输约定。
 
-`frame.body.joints` 暴露的 body 关节姿态来自 PICO body tracking 的 `localPose`。Unity 发送端不会把 body skeleton 强行拟合到 headset pose；如果下游需要统一的应用坐标空间，应使用显式校准变换。
+Unity 发送端不会把 body skeleton 强行拟合到 headset pose，也不会把 tracking 数据自动对齐到地面。如果下游需要统一的应用坐标空间、机器人坐标系或地面对齐，应使用显式校准变换。
 
 某类 tracking 不可用时，SDK 返回固定 shape 零数组，并用 `active=False` 表示不可消费。
 

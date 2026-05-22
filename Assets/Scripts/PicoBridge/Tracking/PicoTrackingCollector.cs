@@ -8,7 +8,7 @@ using Unity.XR.PXR;
 namespace PicoBridge.Tracking
 {
     /// <summary>
-    /// Collects tracking data from PICO native APIs and serializes to XRobo-compatible JSON.
+    /// Collects tracking data from PICO native APIs and serializes it to bridge JSON.
     /// </summary>
     public class PicoTrackingCollector
     {
@@ -74,17 +74,15 @@ namespace PicoBridge.Tracking
             int frameIdx = 0;
             PXR_System.GetPredictedMainSensorStateNew(ref state, ref frameIdx);
 
-            Vector3 p = ToUnityPosition(
+            _sb.Append(",\"Head\":{\"pose\":\"");
+            AppendPose(
                 state.pose.position.x,
                 state.pose.position.y,
-                state.pose.position.z);
-            Quaternion r = ToUnityRotation(
+                state.pose.position.z,
                 state.pose.orientation.x,
                 state.pose.orientation.y,
                 state.pose.orientation.z,
                 state.pose.orientation.w);
-            _sb.Append(",\"Head\":{\"pose\":\"");
-            AppendPose(p.x, p.y, p.z, r.x, r.y, r.z, r.w);
             _sb.Append($"\",\"status\":{state.status}}}");
         }
 
@@ -105,14 +103,12 @@ namespace PicoBridge.Tracking
         {
             Vector3 pos = PXR_Input.GetControllerPredictPosition(ctrl, predictTimeMs);
             Quaternion rot = PXR_Input.GetControllerPredictRotation(ctrl, predictTimeMs);
-            pos = ToUnityPosition(pos.x, pos.y, pos.z);
-            rot = ToUnityRotation(rot.x, rot.y, rot.z, rot.w);
 
             _sb.Append($"\"{side}\":{{\"pose\":\"");
             AppendPose(pos.x, pos.y, pos.z, rot.x, rot.y, rot.z, rot.w);
             _sb.Append('"');
 
-            // Read input via Unity InputDevices (same approach as XRobo)
+            // Read input via Unity InputDevices.
             var devices = new List<InputDevice>();
             InputDevices.GetDevicesWithCharacteristics(chars, devices);
             if (devices.Count > 0)
@@ -214,7 +210,7 @@ namespace PicoBridge.Tracking
 
             _sb.Append(",\"Body\":{");
             _sb.Append("\"poseSpace\":\"pico_body_local\"");
-            _sb.Append(",\"alignment\":\"none\"");
+            _sb.Append(",\"alignment\":\"pico_native\"");
             _sb.Append(",\"joints\":[");
 
             for (int i = 0; i < count; i++)
@@ -223,21 +219,51 @@ namespace PicoBridge.Tracking
                 var rd = data.roleDatas[i];
                 _sb.Append("{\"p\":\"");
                 AppendPose(
-                    (float)rd.localPose.PosX, (float)rd.localPose.PosY, (float)rd.localPose.PosZ,
-                    (float)rd.localPose.RotQx, (float)rd.localPose.RotQy, (float)rd.localPose.RotQz, (float)rd.localPose.RotQw);
-                _sb.Append($"\",\"t\":{(int)rd.bodyAction}");
-                AppendEmptyBodyVelocity();
+                    (float)rd.localPose.PosX,
+                    (float)rd.localPose.PosY,
+                    -(float)rd.localPose.PosZ,
+                    (float)rd.localPose.RotQx,
+                    (float)rd.localPose.RotQy,
+                    -(float)rd.localPose.RotQz,
+                    -(float)rd.localPose.RotQw);
+                _sb.Append($"\",\"t\":{rd.localPose.TimeStamp}");
+                unsafe
+                {
+                    AppendBodyVelocity(rd);
+                }
                 _sb.Append('}');
             }
 
             _sb.Append($"],\"len\":{count}}}");
         }
 
-        private void AppendEmptyBodyVelocity()
+        private unsafe void AppendBodyVelocity(BodyTrackingRoleData rd)
         {
-            // Body pose is the consumed signal; velocity fields stay present for protocol compatibility.
-            _sb.Append(",\"va\":\"0,0,0,0,0,0\"");
-            _sb.Append(",\"wva\":\"0,0,0,0,0,0\"");
+            _sb.Append(",\"va\":\"");
+            AppendPoseComponent((float)rd.velo[0]);
+            _sb.Append(',');
+            AppendPoseComponent((float)rd.velo[1]);
+            _sb.Append(',');
+            AppendPoseComponent((float)rd.velo[2]);
+            _sb.Append(',');
+            AppendPoseComponent((float)rd.acce[0]);
+            _sb.Append(',');
+            AppendPoseComponent((float)rd.acce[1]);
+            _sb.Append(',');
+            AppendPoseComponent((float)rd.acce[2]);
+            _sb.Append("\",\"wva\":\"");
+            AppendPoseComponent((float)rd.wvelo[0]);
+            _sb.Append(',');
+            AppendPoseComponent((float)rd.wvelo[1]);
+            _sb.Append(',');
+            AppendPoseComponent((float)rd.wvelo[2]);
+            _sb.Append(',');
+            AppendPoseComponent((float)rd.wacce[0]);
+            _sb.Append(',');
+            AppendPoseComponent((float)rd.wacce[1]);
+            _sb.Append(',');
+            AppendPoseComponent((float)rd.wacce[2]);
+            _sb.Append('"');
         }
 
         // ── Motion Trackers ───────────────────────────────
@@ -251,16 +277,6 @@ namespace PicoBridge.Tracking
         }
 
         // ── helpers ───────────────────────────────────────
-
-        private static Vector3 ToUnityPosition(float x, float y, float z)
-        {
-            return new Vector3(x, y, -z);
-        }
-
-        private static Quaternion ToUnityRotation(float x, float y, float z, float w)
-        {
-            return new Quaternion(x, y, -z, -w);
-        }
 
         private void AppendPose(float x, float y, float z, float qx, float qy, float qz, float qw)
         {

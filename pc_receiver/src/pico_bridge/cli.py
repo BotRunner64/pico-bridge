@@ -10,6 +10,7 @@ import time
 from typing import Any
 
 from .bridge import PicoBridge
+from .recording import TrackingRecorder
 
 _viz_push: Any = None  # set to visualiser.push_frame when --viz is active
 _STATUS_INTERVAL_SECONDS = 5.0
@@ -23,6 +24,23 @@ def _visualiser_enabled(args: argparse.Namespace) -> bool:
 def _push_visualiser(data: dict[str, Any]) -> None:
     if _viz_push is not None:
         _viz_push(data)
+
+
+def _build_raw_tracking_callback(
+    *,
+    viz_enabled: bool,
+    recorder: TrackingRecorder | None,
+) -> Any:
+    if not viz_enabled and recorder is None:
+        return None
+
+    def handle_raw_tracking(data: dict[str, Any]) -> None:
+        if viz_enabled:
+            _push_visualiser(data)
+        if recorder is not None:
+            recorder.record_tracking(data)
+
+    return handle_raw_tracking
 
 
 def _format_status(stats: Any) -> str:
@@ -63,6 +81,10 @@ async def _run(args: argparse.Namespace) -> None:
         _viz_push = visualiser.push_frame
         print("Rerun 3D viewer ready")
 
+    recorder = TrackingRecorder(args.record) if args.record is not None else None
+    if recorder is not None:
+        recorder.open()
+
     bridge = PicoBridge(
         host="0.0.0.0",
         port=args.tcp_port,
@@ -71,7 +93,7 @@ async def _run(args: argparse.Namespace) -> None:
         video=sdk_video,
         video_enabled=sdk_video_enabled,
         print_tracking=args.print_tracking,
-        on_raw_tracking=_push_visualiser if viz_enabled else None,
+        on_raw_tracking=_build_raw_tracking_callback(viz_enabled=viz_enabled, recorder=recorder),
     )
     camera_worker: _CameraCaptureWorker | None = None
 
@@ -88,6 +110,8 @@ async def _run(args: argparse.Namespace) -> None:
             print(f"WebRTC video sender ready (source={camera_worker.label})")
         elif args.video != "disabled":
             print(f"WebRTC video sender ready (source={args.video})")
+        if recorder is not None:
+            print(f"Recording tracking data to {recorder.path}")
         print("Waiting for headset connection...")
 
         last_status_time = asyncio.get_running_loop().time()
@@ -108,6 +132,9 @@ async def _run(args: argparse.Namespace) -> None:
         if camera_worker is not None:
             camera_worker.stop()
         bridge.close()
+        if recorder is not None:
+            print(f"Tracking recording saved to {recorder.path} ({recorder.frame_count} frames)")
+            recorder.close()
         if viz_enabled:
             from . import visualiser as vis_mod
 
@@ -274,6 +301,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-discovery",
         action="store_true",
         help="Disable UDP broadcast discovery",
+    )
+    parser.add_argument(
+        "--record",
+        nargs="?",
+        const="",
+        help=(
+            "Record raw tracking frames to JSONL. "
+            "Use without a value for the default recording directory, "
+            "or pass a file path/directory."
+        ),
     )
     parser.add_argument(
         "--viz",

@@ -45,7 +45,7 @@ def test_pico_frame_parses_tracking_payload_shapes_and_metadata():
 
     assert frame.seq == 9
     assert frame.timestamp_ns == 123
-    assert frame.coordinate_space == "pico_unity"
+    assert frame.coordinate_space == "pico_native"
     assert frame.quat_order == "xyzw"
     assert frame.units == "meters"
     np.testing.assert_allclose(frame.head.position, [1, 2, 3])

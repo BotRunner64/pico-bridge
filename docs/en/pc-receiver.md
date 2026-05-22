@@ -113,6 +113,18 @@ pico-bridge-receiver -v --camera realsense --camera-device RS123 --viz
 
 Omit `--camera-device` to use webcam index `0` or the default RealSense device. Install the `camera` extra for OpenCV (`cv2`) and `pyrealsense2`.
 
+## CLI Recording
+
+Use `--record` to capture raw tracking frames for debugging:
+
+```bash
+pico-bridge-receiver --record
+pico-bridge-receiver --record recordings/session.jsonl
+pico-bridge-receiver --record recordings/
+```
+
+The receiver writes newline-delimited JSON. The first line is metadata, and each following line is one tracking frame with a receiver-side sequence number, receive timestamp, and the raw Unity payload. When `--record` has no value, files are created under `pico_bridge_recordings/` with a timestamped name. Passing a directory also creates a timestamped file inside that directory. Each frame is flushed immediately so interrupted debug sessions keep the data already received.
+
 ## Creating a Receiver
 
 Create a receiver with the following options:
@@ -170,9 +182,9 @@ frame.controllers.left.buttons
 frame.raw
 ```
 
-Coordinates and data keep native PICO/Unity semantics: coordinate space `pico_unity`, units meters, quaternion order `xyzw`. Downstream projects are responsible for converting coordinate systems, joint orders, and robot semantics.
+Coordinates and data use the PICO native tracking convention: coordinate space `pico_native`, units meters, quaternion order `xyzw`. Head, controller, and hand poses are serialized from the PICO/PXR pose values. Body poses use PICO body `localPose` values with the body Z position and Z/W quaternion components inverted to match the bridge transport convention.
 
-Body joint poses exposed through `frame.body.joints` come from PICO body tracking `localPose` values. The Unity sender does not force-fit the body skeleton to the headset pose; consumers that need a shared application space should apply an explicit calibration transform.
+The Unity sender does not force-fit the body skeleton to the headset pose or auto-align tracking data to a ground plane. Consumers that need a shared application space, robot coordinate frame, or floor alignment should apply an explicit calibration transform.
 
 When a tracking family is unavailable, the SDK returns fixed-shape zero arrays and marks the family with `active=False`.
 

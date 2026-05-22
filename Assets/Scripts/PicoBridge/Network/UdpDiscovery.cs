@@ -10,7 +10,7 @@ namespace PicoBridge.Network
 {
     /// <summary>
     /// Listens for UDP broadcast from PC server (CMD 0x7E on port 29888).
-    /// Mirrors XRobo UIUdpReceiver discovery mechanism.
+    /// Mirrors the bridge UDP discovery mechanism.
     /// </summary>
     public class UdpDiscovery : MonoBehaviour
     {

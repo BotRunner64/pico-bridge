@@ -1,8 +1,7 @@
 """Public PICO tracking frame types.
 
-The public API keeps PICO/Unity data semantics intact: positions are meters,
-quaternions are xyzw, and coordinates are in the Unity/PICO space sent by the
-headset. Consumer projects are responsible for converting these frames into
+The public API keeps PICO tracking semantics intact: positions are meters,
+quaternions are xyzw, and consumers are responsible for converting frames into
 their own coordinate systems and data models.
 """
 
@@ -106,7 +105,7 @@ HAND_JOINT_NAMES: tuple[str, ...] = (
 
 @dataclass(frozen=True)
 class Pose:
-    """A PICO/Unity pose in meters and xyzw quaternion order."""
+    """A PICO pose in meters and xyzw quaternion order."""
 
     position: ArrayF64
     rotation: ArrayF64
@@ -175,7 +174,7 @@ class PicoFrame:
             seq=seq,
             timestamp_ns=_int_or_default(payload.get("timeStampNs"), 0),
             receive_time_s=float(receive_time_s),
-            coordinate_space="pico_unity",
+            coordinate_space="pico_native",
             quat_order="xyzw",
             units="meters",
             head=_parse_head(payload.get("Head", {})),

@@ -21,6 +21,14 @@ def test_status_interval_can_be_disabled():
     assert build_parser().parse_args(["--status-interval", "0"]).status_interval == 0.0
 
 
+def test_record_flag_defaults_to_auto_path():
+    assert build_parser().parse_args(["--record"]).record == ""
+
+
+def test_record_flag_accepts_output_path():
+    assert build_parser().parse_args(["--record", "debug.jsonl"]).record == "debug.jsonl"
+
+
 def test_advertise_ip_flag_is_parsed():
     args = build_parser().parse_args(["--advertise-ip", "192.168.1.10"])
     assert args.advertise_ip == "192.168.1.10"
