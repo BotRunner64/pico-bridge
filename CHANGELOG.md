@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1] - 2026-05-22
+
+- Added head-gaze UI following for the headset panel.
+- Added receiver tracking recording with `--record`.
+- Fixed tracking pose semantics and packet resync handling.
+- Fixed the XR origin floor offset.
+- Documented receiver architecture support.
+
 ## [0.2.0] - 2026-05-11
 
 - Added pushed PC video frame streaming.

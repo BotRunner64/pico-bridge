@@ -9,7 +9,7 @@ PC 端推荐使用同步 `PicoBridge` API 读取最新 tracking 帧。同一个 
 从 GitHub Release 附带的 wheel 安装 PC receiver：
 
 ```bash
-pip install https://github.com/BotRunner64/pico-bridge/releases/download/v0.2.0/pico_bridge-0.2.0-py3-none-any.whl
+pip install https://github.com/BotRunner64/pico-bridge/releases/download/v0.2.1/pico_bridge-0.2.1-py3-none-any.whl
 ```
 
 在本仓库内本地开发时，从 PC receiver 包目录安装：
@@ -42,11 +42,11 @@ conda install -c conda-forge pyrealsense2
 
 ```toml
 dependencies = [
-    "pico-bridge @ https://github.com/BotRunner64/pico-bridge/releases/download/v0.2.0/pico_bridge-0.2.0-py3-none-any.whl"
+    "pico-bridge @ https://github.com/BotRunner64/pico-bridge/releases/download/v0.2.1/pico_bridge-0.2.1-py3-none-any.whl"
 ]
 ```
 
-包版本跟 PICO/APK release 版本保持一致。例如，`pico_bridge-0.2.0-py3-none-any.whl` 对应 `v0.2.0` APK release。通过 wheel 安装只会下载 PC 端 Python 包，不会下载 Unity 工程。
+包版本跟 PICO/APK release 版本保持一致。例如，`pico_bridge-0.2.1-py3-none-any.whl` 对应 `v0.2.1` APK release。通过 wheel 安装只会下载 PC 端 Python 包，不会下载 Unity 工程。
 
 本地联调时也可以只安装子目录：
 
