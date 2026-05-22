@@ -13,6 +13,7 @@
 <p align="center">
   <a href="docs/en/README.md">English Docs</a> •
   <a href="docs/zh/README.md">中文文档</a> •
+  <a href="CHANGELOG.md">Changelog</a> •
   <a href="docs/en/pc-receiver.md">PC Receiver</a> •
   <a href="docs/en/unity-development.md">Unity Development</a>
 </p>
