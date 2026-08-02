@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Assets/Branding/logo.png" alt="PICO Bridge" width="160">
+  <img src="docs/assets/pico-bridge-tracking-demo.png" alt="PICO Bridge full-body tracking demo" width="160">
 </p>
 
 <h1 align="center">PICO Bridge</h1>
