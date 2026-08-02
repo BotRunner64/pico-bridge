@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/pico-bridge-tracking-demo.png" alt="PICO Bridge full-body tracking demo" width="160">
+  <img src="docs/assets/pico-bridge-tracking-demo.png" alt="PICO Bridge full-body tracking demo" width="320">
 </p>
 
 <h1 align="center">PICO Bridge</h1>
