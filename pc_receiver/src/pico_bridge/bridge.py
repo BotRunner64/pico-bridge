@@ -13,9 +13,11 @@ import numpy as np
 from .frame_store import FrameStore
 from .frames import PicoFrame
 from .runtime import PicoBridgeRuntime
+from .stereo import StereoCameraIntrinsics
 from .webrtc_sender import ExternalVideoFrameSource
 
 VideoSource = Literal["frames", "test-pattern"]
+VideoLayout = Literal["mono", "stereo-sbs"]
 
 log = logging.getLogger("pico_bridge.bridge")
 
@@ -47,6 +49,8 @@ class PicoBridge:
         advertise_ip: str | None = None,
         video: VideoSource | str | None = None,
         video_enabled: bool | None = None,
+        video_layout: VideoLayout | str = "mono",
+        stereo_intrinsics: StereoCameraIntrinsics | None = None,
         print_tracking: bool = False,
         history_size: int = 120,
         start_timeout: float = 10.0,
@@ -57,6 +61,10 @@ class PicoBridge:
         self.discovery = bool(discovery)
         self.advertise_ip = advertise_ip
         self.video = _normalize_video_source(video)
+        self.video_layout = _normalize_video_layout(video_layout)
+        if stereo_intrinsics is not None and self.video_layout != "stereo-sbs":
+            raise ValueError("stereo_intrinsics requires video_layout='stereo-sbs'")
+        self.stereo_intrinsics = stereo_intrinsics
         self.video_enabled = self.video is not None if video_enabled is None else bool(video_enabled)
         if self.video_enabled and self.video is None:
             raise ValueError("video_enabled=True requires video='frames' or video='test-pattern'")
@@ -189,6 +197,8 @@ class PicoBridge:
             video_enabled=self.video_enabled,
             video_frame_source=self._video_frame_source,
             frame_store=self._frame_store,
+            video_layout=self.video_layout,
+            stereo_intrinsics=self.stereo_intrinsics,
             print_tracking=self.print_tracking,
             on_raw_tracking=self._on_raw_tracking,
             on_started=self._started_event.set,
@@ -222,6 +232,14 @@ def _normalize_video_source(video: str | None) -> str | None:
     if video not in ("frames", "test-pattern"):
         raise ValueError(f"unsupported video source: {video!r}")
     return video
+
+
+def _normalize_video_layout(layout: str | None) -> str:
+    if layout in (None, "", "mono"):
+        return "mono"
+    if layout != "stereo-sbs":
+        raise ValueError(f"unsupported video layout: {layout!r}")
+    return layout
 
 
 def _cancel_pending_tasks(loop: asyncio.AbstractEventLoop) -> None:

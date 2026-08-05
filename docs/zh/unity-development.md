@@ -33,7 +33,7 @@ Assets/Scripts/PicoBridge/
 ├── PicoBridgeManager.cs      桥接主入口
 ├── Network/                  TCP/UDP 协议与发现
 ├── Tracking/                 头显、手柄、手部、身体 tracking
-├── Camera/                   WebRTC 视频接收
+├── Camera/                   WebRTC 接收与 stereo SBS 显示
 ├── UI/                       头显内 UI
 └── Editor/                   场景 setup、校验和构建工具
 
@@ -47,8 +47,15 @@ pc_receiver/                  PC 端 Python receiver
 | 菜单 | 用途 |
 | --- | --- |
 | `PicoBridge > Setup Scene` | 补齐桥接对象和 UI prefab 实例。 |
+| `PicoBridge > Install Stereo SBS Screen` | 在 `Main Camera` 下安装或刷新头锁定的逐眼视频屏幕。 |
 | `PicoBridge > Rebuild Panel Prefab` | 从模板重建 UI prefab；会覆盖手动 UI 调整。 |
 | `PicoBridge > Validate Project Settings` | 检查 Android/PICO 打包设置。 |
+
+## Stereo SBS 显示
+
+`SampleScene` 的 `Main Camera` 下包含一个 `StereoVideoScreen` 子对象。普通 `mono` 视频时它的 renderer 保持禁用；只有 PC 广播 `video_layout="stereo-sbs"` 且 WebRTC 解码纹理已经到达后才会启用。`PicoBridge/StereoSBS` shader 会通过 Unity 的 stereo eye index 选择对应的 SBS 半幅画面，使用投影矩阵恢复 PICO 输出眼视线，再用归一化源相机内参映射这条视线，从而保持相机画面的比例和角度尺度。超出源相机标定 FOV 的像素会渐隐回 passthrough。设备侧需要修正时，可以在 `StereoSbsDisplay` 组件上使用 `Swap Eyes` 和 `Flip Y`。
+
+屏幕层级由编辑器工具安装；运行时代码只更新其纹理、可见性、标定数据和当前逐眼投影属性。显示仍然采用头锁定方式，不执行带时间戳的相机姿态重投影、深度扭曲或世界配准。
 
 ## 开发规则
 

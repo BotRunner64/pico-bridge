@@ -14,6 +14,7 @@ namespace PicoBridge.UI
 
         private float _refreshTimer;
         private bool _cameraPreviewRequested;
+        private string _requestedVideoLayout = string.Empty;
         private bool _cameraSignalVisible;
         private bool _hasExpandedRect;
         private Vector2 _expandedAnchorMin;
@@ -72,6 +73,7 @@ namespace PicoBridge.UI
                 manager?.WebRtcCamera?.StopPreview();
 
             _cameraPreviewRequested = false;
+            _requestedVideoLayout = string.Empty;
         }
 
         private void OnDestroy()
@@ -121,6 +123,7 @@ namespace PicoBridge.UI
                     manager.WebRtcCamera.StopPreview();
 
                 _cameraPreviewRequested = false;
+                _requestedVideoLayout = string.Empty;
                 return;
             }
 
@@ -130,14 +133,28 @@ namespace PicoBridge.UI
                     manager.WebRtcCamera.StopPreview();
 
                 _cameraPreviewRequested = false;
+                _requestedVideoLayout = string.Empty;
                 return;
             }
 
-            if (_cameraPreviewRequested && !manager.WebRtcCamera.ShouldRetry)
+            string videoLayout = manager.PcVideoLayout;
+            if (_cameraPreviewRequested &&
+                _requestedVideoLayout == videoLayout &&
+                !manager.WebRtcCamera.ShouldRetry)
                 return;
 
+            if (_cameraPreviewRequested || manager.WebRtcCamera.IsActive)
+                manager.WebRtcCamera.StopPreview();
+
+            bool stereoSbs = manager.IsPcVideoStereoSbs;
             _cameraPreviewRequested = true;
-            manager.WebRtcCamera.StartPreview(manager.TcpClient, 1280, 720, 30, 8 * 1024 * 1024);
+            _requestedVideoLayout = videoLayout;
+            manager.WebRtcCamera.StartPreview(
+                manager.TcpClient,
+                1280,
+                stereoSbs ? 360 : 720,
+                stereoSbs ? 60 : 30,
+                8 * 1024 * 1024);
         }
 
         private void RefreshAll()
@@ -190,14 +207,15 @@ namespace PicoBridge.UI
             bool connected = manager != null && manager.IsConnected;
             var camera = manager != null ? manager.WebRtcCamera : null;
             bool hasSignal = connected && camera != null && camera.HasVideoSignal;
-            var texture = hasSignal ? camera.Texture : null;
+            bool showInlinePreview = hasSignal && !manager.IsPcVideoStereoSbs;
+            var texture = showInlinePreview ? camera.Texture : null;
             var previewRoot = ResolveCameraPreviewRoot();
 
-            if (previewRoot != null && previewRoot.gameObject.activeSelf != hasSignal)
-                previewRoot.gameObject.SetActive(hasSignal);
-            if (_cameraSignalVisible != hasSignal)
+            if (previewRoot != null && previewRoot.gameObject.activeSelf != showInlinePreview)
+                previewRoot.gameObject.SetActive(showInlinePreview);
+            if (_cameraSignalVisible != showInlinePreview)
             {
-                _cameraSignalVisible = hasSignal;
+                _cameraSignalVisible = showInlinePreview;
                 ApplyCollapseState();
             }
 

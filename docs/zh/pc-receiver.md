@@ -86,6 +86,24 @@ with PicoBridge(video="frames") as pico:
 
 `push_video_frame()` 只保存最新帧，不排队，所以高频仿真不会累积显示延迟。头显启动 WebRTC 预览前推入的帧会被缓存，并在预览连接启动后发送。
 
+### Stereo SBS 与 ZED Mini 快速启动
+
+当推送的一帧中左半边是左眼画面、右半边是右眼画面时，设置 `video_layout="stereo-sbs"`。头显会为每只眼采样对应的半幅画面，而不是把合并帧当成普通预览显示。
+
+仓库内的 ZED Mini 示例会以 `HD720` 打开相机，获取 ZED SDK 已校正的 `sl.VIEW.SIDE_BY_SIDE` 图像，读取已校正的 `fx`、`fy`、`cx` 和 `cy`，将 BGRA 转为 RGB，并通过同一套 bridge 传送图像和归一化内参。请先安装 ZED SDK 及其附带的 `pyzed` Python API，然后运行：
+
+```bash
+cd pc_receiver
+pip install -e .
+python examples/zed_mini_sbs.py --advertise-ip 192.168.1.10
+```
+
+请把广播地址替换为头显能够访问的 PC 地址。头显会请求一条 60 fps 的合并 `1280x360` WebRTC 流，每只眼得到 `640x360`；如果相机无法以 60 fps 捕获，可使用 `--fps 30`。这个选项只改变 ZED 捕获频率，WebRTC track 仍按头显请求的 60 fps 节奏发送。
+
+头显会把每只输出眼的视线通过提供的源相机内参映射到图像，不再把每幅 16:9 画面强行拉满整个单眼 viewport。这样可以保持正确的角度尺度和图像比例；超出相机标定视场的区域会渐隐回 PICO passthrough。没有提供 `stereo_intrinsics` 的 SBS 来源会使用保持比例的 90 度水平 FOV 回退。
+
+显示仍然是头锁定的：它不会使用带时间戳的相机姿态重投影画面，也不会执行深度扭曲或让画面与物理世界做几何对齐。如果左右眼颠倒或解码纹理上下翻转，可在场景的 `StereoVideoScreen` 组件上使用 `Swap Eyes` 或 `Flip Y`。
+
 如果希望启动时不请求 WebRTC 视频，可以把 `video_enabled=False`，之后再调用 `set_video_enabled(True)` 让头显开始请求视频：
 
 ```python
@@ -100,6 +118,7 @@ with PicoBridge(video="frames", video_enabled=False) as pico:
 python pc_receiver/examples/opencv_camera.py --device 0
 python pc_receiver/examples/realsense_camera.py --serial RS123
 python pc_receiver/examples/mujoco_camera.py path/to/model.xml --camera camera_name
+python pc_receiver/examples/zed_mini_sbs.py --advertise-ip 192.168.1.10
 ```
 
 Receiver CLI 可以通过同一套 SDK 推帧路径直接推送 UVC 摄像头或 RealSense 摄像头：
@@ -137,6 +156,8 @@ PicoBridge(
     advertise_ip=None,
     video=None,
     video_enabled=None,
+    video_layout="mono",
+    stereo_intrinsics=None,
     print_tracking=False,
     history_size=120,
     start_timeout=10.0,
@@ -149,6 +170,8 @@ PicoBridge(
 - `advertise_ip`：多网卡时指定广播给头显的 PC IPv4。
 - `video`：`None`、`"frames"` 或 `"test-pattern"`。
 - `video_enabled`：初始视频策略。`None` 跟随 `video`；`False` 会让头显在调用 `set_video_enabled(True)` 前不再请求 WebRTC 视频。
+- `video_layout`：普通整帧预览使用 `"mono"`；左右并排双目帧使用 `"stereo-sbs"`。
+- `stereo_intrinsics`：SBS 来源单眼可选的已校正 `StereoCameraIntrinsics`。提供后，即使 WebRTC 调整帧尺寸，头显仍能保持相机的标定投影；该参数要求 `video_layout="stereo-sbs"`。
 - `print_tracking`：逐帧打印 tracking。
 - `on_raw_tracking`：收到原始 Unity JSON 时调用。
 

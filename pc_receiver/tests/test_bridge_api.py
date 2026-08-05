@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import pico_bridge.bridge as bridge_mod
-from pico_bridge import HAND_JOINT_NAMES, PicoBridge
+from pico_bridge import HAND_JOINT_NAMES, PicoBridge, StereoCameraIntrinsics
 
 
 class FakeRuntime:
@@ -54,10 +54,25 @@ def test_package_exports_public_api_lazily():
 def test_pico_bridge_starts_runtime_and_reports_stats(monkeypatch):
     FakeRuntime.instances = []
     monkeypatch.setattr(bridge_mod, "PicoBridgeRuntime", FakeRuntime)
+    intrinsics = StereoCameraIntrinsics(
+        eye_width=1280,
+        eye_height=720,
+        fx=700.0,
+        fy=701.0,
+        cx=640.0,
+        cy=360.0,
+    )
 
-    with PicoBridge(video="frames", discovery=False) as bridge:
+    with PicoBridge(
+        video="frames",
+        video_layout="stereo-sbs",
+        stereo_intrinsics=intrinsics,
+        discovery=False,
+    ) as bridge:
         runtime = FakeRuntime.instances[0]
         assert runtime.kwargs["video"] == "frames"
+        assert runtime.kwargs["video_layout"] == "stereo-sbs"
+        assert runtime.kwargs["stereo_intrinsics"] == intrinsics
         assert runtime.kwargs["discovery"] is False
         assert runtime.kwargs["video_enabled"] is True
         assert runtime.kwargs["video_frame_source"] is not None
@@ -67,6 +82,48 @@ def test_pico_bridge_starts_runtime_and_reports_stats(monkeypatch):
     assert stats.device_sn == "fake-sn"
     assert stats.video_enabled is True
     assert stats.video_source == "frames"
+
+
+def test_pico_bridge_rejects_unknown_video_layout():
+    with pytest.raises(ValueError, match="unsupported video layout"):
+        PicoBridge(video="frames", video_layout="top-bottom", discovery=False)
+
+
+def test_stereo_intrinsics_require_stereo_layout():
+    intrinsics = StereoCameraIntrinsics(640, 360, 320.0, 320.0, 320.0, 180.0)
+
+    with pytest.raises(ValueError, match="requires video_layout='stereo-sbs'"):
+        PicoBridge(video="frames", stereo_intrinsics=intrinsics, discovery=False)
+
+
+def test_stereo_intrinsics_normalize_for_resizing():
+    intrinsics = StereoCameraIntrinsics(1280, 720, 640.0, 720.0, 608.0, 342.0)
+
+    assert intrinsics.normalized() == {
+        "stereo_fx_norm": 0.5,
+        "stereo_fy_norm": 1.0,
+        "stereo_cx_norm": 0.475,
+        "stereo_cy_norm": 0.475,
+    }
+
+
+def test_stereo_intrinsics_are_publicly_exported():
+    intrinsics = StereoCameraIntrinsics(640, 360, 320.0, 320.0, 320.0, 180.0)
+
+    assert intrinsics.eye_width == 640
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        (0, 360, 320.0, 320.0, 320.0, 180.0),
+        (640, 360, 0.0, 320.0, 320.0, 180.0),
+        (640, 360, 320.0, float("nan"), 320.0, 180.0),
+    ],
+)
+def test_stereo_intrinsics_reject_invalid_values(args):
+    with pytest.raises(ValueError, match="stereo"):
+        StereoCameraIntrinsics(*args)
 
 
 def test_pico_bridge_can_toggle_video_enabled_at_runtime(monkeypatch):

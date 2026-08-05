@@ -33,6 +33,10 @@ namespace PicoBridge
         [Header("PC Control")]
         [SerializeField] private bool allowPcVideoPreview;
         [SerializeField] private bool autoRequestPcVideoPreview;
+        [SerializeField] private string pcVideoLayout = VideoLayoutMono;
+
+        private bool _hasPcStereoIntrinsics;
+        private Vector4 _pcStereoIntrinsics;
 
         [Header("Scene Visuals")]
         public bool hideTrackingVisualsWithoutSignal = true;
@@ -56,6 +60,13 @@ namespace PicoBridge
         public bool IsConnected => _tcp != null && _tcp.State == SocketState.Working;
         public bool AllowPcVideoPreview => allowPcVideoPreview;
         public bool AutoRequestPcVideoPreview => autoRequestPcVideoPreview;
+        public string PcVideoLayout => pcVideoLayout;
+        public bool IsPcVideoStereoSbs => pcVideoLayout == VideoLayoutStereoSbs;
+        public bool HasPcStereoIntrinsics => _hasPcStereoIntrinsics;
+        public Vector4 PcStereoIntrinsics => _pcStereoIntrinsics;
+
+        public const string VideoLayoutMono = "mono";
+        public const string VideoLayoutStereoSbs = "stereo-sbs";
 
         private void Awake()
         {
@@ -244,15 +255,39 @@ namespace PicoBridge
 
             bool enabled = ExtractBool(json, "enabled") ?? false;
             bool autoPreview = ExtractBool(json, "auto_preview") ?? enabled;
-            ApplyVideoPolicy(enabled, autoPreview);
+            string layout = NormalizeVideoLayout(ExtractString(json, "layout"));
+            bool hasStereoIntrinsics = TryExtractStereoIntrinsics(json, out Vector4 stereoIntrinsics);
+            ApplyVideoPolicy(enabled, autoPreview, layout, hasStereoIntrinsics, stereoIntrinsics);
         }
 
-        private void ApplyVideoPolicy(bool enabled, bool autoPreview)
+        private void ApplyVideoPolicy(
+            bool enabled,
+            bool autoPreview,
+            string layout,
+            bool hasStereoIntrinsics,
+            Vector4 stereoIntrinsics)
         {
             allowPcVideoPreview = enabled;
             autoRequestPcVideoPreview = enabled && autoPreview;
+            pcVideoLayout = layout;
+            _hasPcStereoIntrinsics = layout == VideoLayoutStereoSbs && hasStereoIntrinsics;
+            _pcStereoIntrinsics = _hasPcStereoIntrinsics ? stereoIntrinsics : Vector4.zero;
+            string stereoProjection = layout != VideoLayoutStereoSbs
+                ? "n/a"
+                : _hasPcStereoIntrinsics
+                    ? $"calibrated fx={_pcStereoIntrinsics.x:0.0000} fy={_pcStereoIntrinsics.y:0.0000} " +
+                      $"cx={_pcStereoIntrinsics.z:0.0000} cy={_pcStereoIntrinsics.w:0.0000}"
+                    : "aspect-preserving fallback";
+            Debug.Log($"[PicoBridge] Video policy enabled={enabled} layout={layout} projection={stereoProjection}");
             if (!allowPcVideoPreview || !autoRequestPcVideoPreview)
                 _webRtcCamera?.StopPreview();
+        }
+
+        private static string NormalizeVideoLayout(string layout)
+        {
+            return string.Equals(layout, VideoLayoutStereoSbs, System.StringComparison.Ordinal)
+                ? VideoLayoutStereoSbs
+                : VideoLayoutMono;
         }
 
         private static string ExtractString(string json, string key)
@@ -306,6 +341,68 @@ namespace PicoBridge
             if (start + 5 <= json.Length && string.Compare(json, start, "false", 0, 5, System.StringComparison.Ordinal) == 0)
                 return false;
             return null;
+        }
+
+        private static bool TryExtractStereoIntrinsics(string json, out Vector4 intrinsics)
+        {
+            intrinsics = Vector4.zero;
+            float? fx = ExtractFloat(json, "stereo_fx_norm");
+            float? fy = ExtractFloat(json, "stereo_fy_norm");
+            float? cx = ExtractFloat(json, "stereo_cx_norm");
+            float? cy = ExtractFloat(json, "stereo_cy_norm");
+            if (!fx.HasValue || !fy.HasValue || !cx.HasValue || !cy.HasValue)
+                return false;
+            if (!IsFinitePositive(fx.Value) || !IsFinitePositive(fy.Value) ||
+                !IsFinite(cx.Value) || !IsFinite(cy.Value))
+                return false;
+
+            intrinsics = new Vector4(fx.Value, fy.Value, cx.Value, cy.Value);
+            return true;
+        }
+
+        private static float? ExtractFloat(string json, string key)
+        {
+            string needle = $"\"{key}\"";
+            int keyIndex = json.IndexOf(needle, System.StringComparison.Ordinal);
+            if (keyIndex < 0)
+                return null;
+            int colon = json.IndexOf(':', keyIndex + needle.Length);
+            if (colon < 0)
+                return null;
+
+            int start = colon + 1;
+            while (start < json.Length && char.IsWhiteSpace(json[start]))
+                start++;
+            int end = start;
+            while (end < json.Length)
+            {
+                char c = json[end];
+                if ((c >= '0' && c <= '9') || c == '+' || c == '-' || c == '.' || c == 'e' || c == 'E')
+                    end++;
+                else
+                    break;
+            }
+            if (end == start)
+                return null;
+
+            string value = json.Substring(start, end - start);
+            return float.TryParse(
+                value,
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out float result)
+                ? result
+                : (float?)null;
+        }
+
+        private static bool IsFinite(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value);
+        }
+
+        private static bool IsFinitePositive(float value)
+        {
+            return IsFinite(value) && value > 0f;
         }
 
         /// <summary>

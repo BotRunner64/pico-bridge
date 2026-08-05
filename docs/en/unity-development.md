@@ -33,7 +33,7 @@ Assets/Scripts/PicoBridge/
 ├── PicoBridgeManager.cs      bridge entrypoint
 ├── Network/                  TCP/UDP protocol and discovery
 ├── Tracking/                 headset, controller, hand, and body tracking
-├── Camera/                   WebRTC video receiver
+├── Camera/                   WebRTC receiver and stereo SBS display
 ├── UI/                       in-headset UI
 └── Editor/                   scene setup, validation, and build tools
 
@@ -47,8 +47,15 @@ pc_receiver/                  PC-side Python receiver
 | Menu | Purpose |
 | --- | --- |
 | `PicoBridge > Setup Scene` | Completes bridge objects and UI prefab instances. |
+| `PicoBridge > Install Stereo SBS Screen` | Installs or refreshes the head-locked per-eye video screen under `Main Camera`. |
 | `PicoBridge > Rebuild Panel Prefab` | Rebuilds the UI prefab from the template; this overwrites manual UI changes. |
 | `PicoBridge > Validate Project Settings` | Checks Android/PICO build settings. |
+
+## Stereo SBS Display
+
+`SampleScene` contains a `StereoVideoScreen` child under `Main Camera`. Its renderer stays disabled for normal `mono` video and is enabled only after the PC advertises `video_layout="stereo-sbs"` and a decoded WebRTC texture has arrived. The `PicoBridge/StereoSBS` shader selects the matching SBS half with Unity's stereo eye index, reconstructs the PICO output-eye ray from its projection matrix, and maps that ray with the normalized source-camera intrinsics. This keeps camera proportions and angular scale intact. Pixels outside the calibrated source FOV feather back to passthrough. `Swap Eyes` and `Flip Y` are available on the `StereoSbsDisplay` component for device-side correction.
+
+The screen hierarchy is installed by the editor tool; runtime code updates its texture, visibility, calibration, and current per-eye projection properties only. The display remains head-locked: it does not perform timestamped camera-pose reprojection, depth warping, or world registration.
 
 ## Development Rules
 

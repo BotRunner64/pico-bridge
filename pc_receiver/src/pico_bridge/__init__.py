@@ -16,6 +16,7 @@ __all__ = [
     "PicoBridgeStats",
     "PicoFrame",
     "Pose",
+    "StereoCameraIntrinsics",
     "cli",
     "discovery",
     "protocol",
@@ -28,6 +29,10 @@ def __getattr__(name: str) -> Any:
         from .bridge import PicoBridge, PicoBridgeStats
 
         return {"PicoBridge": PicoBridge, "PicoBridgeStats": PicoBridgeStats}[name]
+    if name == "StereoCameraIntrinsics":
+        from .stereo import StereoCameraIntrinsics
+
+        return StereoCameraIntrinsics
     if name in (
         "BODY_JOINT_NAMES",
         "BODY_JOINT_PARENTS",

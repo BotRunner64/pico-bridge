@@ -11,6 +11,7 @@ from .camera_request import CameraRequest
 from .control import CONTROL_FUNCTION_NAME, build_video_policy_message
 from .discovery import UdpBroadcaster
 from .frame_store import FrameStore
+from .stereo import StereoCameraIntrinsics
 from .tcp_server import PicoBridgeServer
 from .webrtc_sender import ExternalVideoFrameSource, WebRtcVideoSender
 
@@ -42,6 +43,8 @@ class PicoBridgeRuntime:
         video_enabled: bool,
         video_frame_source: ExternalVideoFrameSource | None,
         frame_store: FrameStore,
+        video_layout: str = "mono",
+        stereo_intrinsics: StereoCameraIntrinsics | None = None,
         print_tracking: bool = False,
         on_raw_tracking: RawTrackingCallback | None = None,
         on_started: Callable[[], None] | None = None,
@@ -52,6 +55,8 @@ class PicoBridgeRuntime:
         self._advertise_ip = advertise_ip
         self._video_source = video
         self._video_enabled = bool(video_enabled)
+        self._video_layout = video_layout
+        self._stereo_intrinsics = stereo_intrinsics
         self._video_frame_source = video_frame_source
         self._frame_store = frame_store
         self._print_tracking = print_tracking
@@ -173,7 +178,12 @@ class PicoBridgeRuntime:
             return
         await server.send_function(
             CONTROL_FUNCTION_NAME,
-            build_video_policy_message(enabled=self._video_enabled, source=self._video_source),
+            build_video_policy_message(
+                enabled=self._video_enabled,
+                source=self._video_source,
+                layout=self._video_layout,
+                stereo_intrinsics=self._stereo_intrinsics,
+            ),
         )
 
     @staticmethod

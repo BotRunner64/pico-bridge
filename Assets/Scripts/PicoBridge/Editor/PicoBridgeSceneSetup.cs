@@ -38,6 +38,7 @@ namespace PicoBridge.Editor
             if (root.GetComponent<PicoBridgeUI>() == null)
                 root.AddComponent<PicoBridgeUI>();
 
+            PicoBridgeStereoSbsSceneSetup.InstallInScene(EditorSceneManager.GetActiveScene(), saveScene: false);
             EditorSceneManager.MarkSceneDirty(root.scene);
         }
 
@@ -61,6 +62,7 @@ namespace PicoBridge.Editor
                 Undo.AddComponent<PicoBridgeUI>(root);
 
             PicoBridgeSceneUiTemplate.InstallPanelPrefabInScene(EditorSceneManager.GetActiveScene(), saveScene: false);
+            PicoBridgeStereoSbsSceneSetup.InstallInScene(EditorSceneManager.GetActiveScene(), saveScene: false);
 
             Selection.activeGameObject = root;
             EditorSceneManager.MarkSceneDirty(root.scene);

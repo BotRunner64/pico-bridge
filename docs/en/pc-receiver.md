@@ -86,6 +86,24 @@ with PicoBridge(video="frames") as pico:
 
 `push_video_frame()` stores only the latest frame. It does not queue frames, so a fast simulator will not build up display latency. Frames pushed before the headset starts the WebRTC preview are cached and sent once the preview connection starts.
 
+### Stereo SBS and ZED Mini quick start
+
+Set `video_layout="stereo-sbs"` when one pushed frame contains the left-eye image in its left half and the right-eye image in its right half. The headset then samples the matching half for each eye instead of showing the combined frame as a normal preview.
+
+The included ZED Mini example opens the camera in `HD720`, retrieves the SDK's rectified `sl.VIEW.SIDE_BY_SIDE` image, reads the rectified `fx`, `fy`, `cx`, and `cy` values, converts BGRA to RGB, and pushes the image and normalized intrinsics through the same bridge. Install the ZED SDK and its bundled `pyzed` Python API first, then run:
+
+```bash
+cd pc_receiver
+pip install -e .
+python examples/zed_mini_sbs.py --advertise-ip 192.168.1.10
+```
+
+Replace the advertised address with the PC address reachable from the headset. The headset requests one combined `1280x360` WebRTC stream at 60 fps, giving each eye `640x360`; use `--fps 30` if the camera cannot capture at 60 fps. This option changes ZED capture cadence, while the WebRTC track remains paced at the headset's 60 fps request.
+
+The headset maps each output-eye ray through the supplied source-camera intrinsics instead of stretching each 16:9 image over the complete eye viewport. This preserves angular scale and image proportions; areas beyond the camera's calibrated field of view feather back to PICO passthrough. An SBS source without `stereo_intrinsics` uses an aspect-preserving 90-degree horizontal-FOV fallback.
+
+The display is still head-locked: it does not reproject the camera image using a timestamped camera pose, depth-warp it, or align it geometrically with the physical world. If the eyes are reversed or the decoded texture is upside down, use `Swap Eyes` or `Flip Y` on the scene's `StereoVideoScreen` component.
+
 Use `video_enabled=False` to keep the WebRTC preview disabled at startup, then toggle it later with `set_video_enabled(True)` when you want the headset to request video:
 
 ```python
@@ -100,6 +118,7 @@ Example scripts:
 python pc_receiver/examples/opencv_camera.py --device 0
 python pc_receiver/examples/realsense_camera.py --serial RS123
 python pc_receiver/examples/mujoco_camera.py path/to/model.xml --camera camera_name
+python pc_receiver/examples/zed_mini_sbs.py --advertise-ip 192.168.1.10
 ```
 
 The receiver CLI can stream a UVC webcam or RealSense camera through the same SDK push-frame path:
@@ -137,6 +156,8 @@ PicoBridge(
     advertise_ip=None,
     video=None,
     video_enabled=None,
+    video_layout="mono",
+    stereo_intrinsics=None,
     print_tracking=False,
     history_size=120,
     start_timeout=10.0,
@@ -149,6 +170,8 @@ Common parameters:
 - `advertise_ip`: PC IPv4 address advertised to the headset when multiple network interfaces are present.
 - `video`: `None`, `"frames"`, or `"test-pattern"`.
 - `video_enabled`: Initial video policy. `None` follows `video`; `False` keeps the headset from requesting WebRTC video until you call `set_video_enabled(True)`.
+- `video_layout`: `"mono"` for a normal full-frame preview or `"stereo-sbs"` for left/right side-by-side frames.
+- `stereo_intrinsics`: Optional rectified `StereoCameraIntrinsics` for one eye of an SBS source. Supplying it lets the headset preserve the camera's calibrated projection even when WebRTC resizes the frame. It requires `video_layout="stereo-sbs"`.
 - `print_tracking`: Print tracking data every frame.
 - `on_raw_tracking`: Called with the raw Unity JSON when a tracking frame arrives.
 
