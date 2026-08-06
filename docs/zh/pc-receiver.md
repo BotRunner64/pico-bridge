@@ -98,9 +98,9 @@ pip install -e .
 python examples/zed_mini_sbs.py --advertise-ip 192.168.1.10
 ```
 
-请把广播地址替换为头显能够访问的 PC 地址。头显会请求一条 60 fps 的合并 `1280x360` WebRTC 流，每只眼得到 `640x360`；如果相机无法以 60 fps 捕获，可使用 `--fps 30`。这个选项只改变 ZED 捕获频率，WebRTC track 仍按头显请求的 60 fps 节奏发送。
+请把广播地址替换为头显能够访问的 PC 地址。头显会请求一条 60 fps 的满分辨率合并 `2560x720` WebRTC 流，每只眼得到 `1280x720`；如果相机无法以 60 fps 捕获，可使用 `--fps 30`。这个选项只改变 ZED 捕获频率，WebRTC track 仍按头显请求的 60 fps 节奏发送。
 
-该请求还会设置约 8.39 Mbps 的视频目标码率。PC sender 会把它应用为协商编码器的初始码率和最高码率；当网络无法承载时，WebRTC receiver 的带宽反馈仍可降低实时码率。这样可以避免 60 fps SBS 流继续使用 aiortc 低得多的 VP8 默认码率。
+该请求还会设置约 33.55 Mbps 的视频目标码率。PC sender 会把它应用为协商编码器的初始码率和最高码率；当网络无法承载时，WebRTC receiver 的带宽反馈仍可降低实时码率。这样可以避免满分辨率 60 fps SBS 流继续使用 aiortc 低得多的 VP8 默认码率。
 
 使用 `--verbose` 运行示例，可以每五秒打印 PC 端发送码率、数据包数量、receiver 报告的丢包和往返时间。Unity receiver 每两秒轮询一次入站统计，每十秒记录 codec、接收码率、已解码帧、丢帧、jitter、PLI 和 NACK 总数；丢包、解码丢帧、PLI 或 NACK 增加时会立即输出 warning。头显内视频状态会显示接收 fps、码率、累计丢包（`L`）和累计解码丢帧（`D`）。
 
@@ -131,7 +131,7 @@ pip install -e '.[camera]'
 python examples/realsense_d415_sbs.py --advertise-ip 192.168.1.10
 ```
 
-默认采集规格为每眼 `1280x720`、30 fps，生成 `2560x720` 源帧。头显当前的 WebRTC 请求会将其缩放为一条合并的 `1280x360` 流，即每眼 `640x360`，并按 60 fps 发送；采集为 30 fps 时，sender 会按需重复最新源帧。可用 `--serial`、`--width`、`--height` 和 `--fps` 选择 RealSense 支持的其他规格。
+默认采集规格为每眼 `1280x720`、30 fps，生成 `2560x720` 源帧。头显当前的 WebRTC 请求会不经缩小直接发送这一满分辨率合并帧，每眼得到 `1280x720`，并按 60 fps 发送；采集为 30 fps 时，sender 会按需重复最新源帧。可用 `--serial`、`--width`、`--height` 和 `--fps` 选择 RealSense 支持的其他规格。
 
 该示例从当前左红外 profile 读取已校正的针孔内参，并随 stereo layout 一起发送。经过实测的默认参数为手动曝光 `30000` us、gain `48`，并关闭红外点阵投射器。可用 `--exposure` 或 `--gain` 覆盖手动参数，用 `--auto-exposure` 恢复传感器自动曝光，需要投射器时可传入 `--enable-emitter`。30 ms 曝光处于 30 fps 所请求的 33.3 ms 帧间隔内，使传感器能够以请求的采集频率为目标。它仍可能使 D415 的 rolling shutter 产生运动模糊，因此相机运动时需要实测效果。该示例只发送两幅图像和内参，不发送深度、相机姿态或 D415 baseline/extrinsic 元数据。
 

@@ -98,9 +98,9 @@ pip install -e .
 python examples/zed_mini_sbs.py --advertise-ip 192.168.1.10
 ```
 
-Replace the advertised address with the PC address reachable from the headset. The headset requests one combined `1280x360` WebRTC stream at 60 fps, giving each eye `640x360`; use `--fps 30` if the camera cannot capture at 60 fps. This option changes ZED capture cadence, while the WebRTC track remains paced at the headset's 60 fps request.
+Replace the advertised address with the PC address reachable from the headset. The headset requests the full-resolution combined `2560x720` WebRTC stream at 60 fps, giving each eye `1280x720`; use `--fps 30` if the camera cannot capture at 60 fps. This option changes ZED capture cadence, while the WebRTC track remains paced at the headset's 60 fps request.
 
-The request also sets an approximately 8.39 Mbps video target. The PC sender applies it as the negotiated encoder's initial and maximum bitrate; WebRTC receiver bandwidth feedback can still reduce the live rate when the network cannot sustain it. This avoids aiortc's much lower VP8 default being used for the 60 fps SBS stream.
+The request also sets an approximately 33.55 Mbps video target. The PC sender applies it as the negotiated encoder's initial and maximum bitrate; WebRTC receiver bandwidth feedback can still reduce the live rate when the network cannot sustain it. This avoids aiortc's much lower VP8 default being used for the full-resolution 60 fps SBS stream.
 
 Run the example with `--verbose` to print PC-side send bitrate, packet count, receiver-reported packet loss, and round-trip time every five seconds. The Unity receiver polls inbound statistics every two seconds, logs codec, receive bitrate, decoded and dropped frames, jitter, PLI, and NACK totals every ten seconds, and emits an immediate warning whenever loss, dropped frames, PLI, or NACK increases. The in-headset video status shows receive fps, bitrate, total packet loss (`L`), and total dropped decoded frames (`D`).
 
@@ -131,7 +131,7 @@ pip install -e '.[camera]'
 python examples/realsense_d415_sbs.py --advertise-ip 192.168.1.10
 ```
 
-The default capture profile is `1280x720` at 30 fps per eye, producing a `2560x720` source frame. The headset's current WebRTC request scales that to one combined `1280x360` stream, or `640x360` per eye, paced at 60 fps; when capture runs at 30 fps, the sender repeats the latest source frame as needed. Use `--serial`, `--width`, `--height`, and `--fps` to select another supported RealSense profile.
+The default capture profile is `1280x720` at 30 fps per eye, producing a `2560x720` source frame. The headset's current WebRTC request sends that full-resolution combined frame without downscaling, giving each eye `1280x720`, and is paced at 60 fps; when capture runs at 30 fps, the sender repeats the latest source frame as needed. Use `--serial`, `--width`, `--height`, and `--fps` to select another supported RealSense profile.
 
 The example reads the rectified pinhole intrinsics from the active left infrared profile and sends them with the stereo layout. Its tested defaults are manual exposure `30000` us, gain `48`, and the infrared dot projector disabled. Pass `--exposure` or `--gain` to override the manual values, `--auto-exposure` to return to sensor auto exposure, or `--enable-emitter` if the projector is needed. The 30 ms exposure fits within the 33.3 ms frame interval requested at 30 fps, allowing the sensor to target the requested capture cadence. It can still cause motion blur on the D415's rolling shutter, so verify the result for moving-camera use. The example sends only the two images and intrinsics, not depth, camera pose, or D415 baseline/extrinsic metadata.
 

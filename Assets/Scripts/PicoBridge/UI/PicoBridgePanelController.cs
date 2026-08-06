@@ -151,10 +151,10 @@ namespace PicoBridge.UI
             _requestedVideoLayout = videoLayout;
             manager.WebRtcCamera.StartPreview(
                 manager.TcpClient,
-                1280,
-                stereoSbs ? 360 : 720,
+                stereoSbs ? 2560 : 1280,
+                720,
                 stereoSbs ? 60 : 30,
-                8 * 1024 * 1024);
+                (stereoSbs ? 32 : 8) * 1024 * 1024);
         }
 
         private void RefreshAll()
