@@ -15,8 +15,8 @@ SPEC.loader.exec_module(VIEWER)
 
 
 def test_default_manual_sensor_settings_match_sender() -> None:
-    assert VIEWER.DEFAULT_EXPOSURE_US == 150_000.0
-    assert VIEWER.DEFAULT_GAIN == 16.0
+    assert VIEWER.DEFAULT_EXPOSURE_US == 30_000.0
+    assert VIEWER.DEFAULT_GAIN == 48.0
 
 
 def test_pair_to_bgr_preserves_raw_grayscale_values() -> None:

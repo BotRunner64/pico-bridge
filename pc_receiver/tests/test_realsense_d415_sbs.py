@@ -15,8 +15,8 @@ SPEC.loader.exec_module(EXAMPLE)
 
 
 def test_default_manual_sensor_settings() -> None:
-    assert EXAMPLE.DEFAULT_EXPOSURE_US == 150_000.0
-    assert EXAMPLE.DEFAULT_GAIN == 16.0
+    assert EXAMPLE.DEFAULT_EXPOSURE_US == 30_000.0
+    assert EXAMPLE.DEFAULT_GAIN == 48.0
 
 
 def test_infrared_pair_is_packed_as_three_channel_sbs() -> None:

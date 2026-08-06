@@ -14,8 +14,8 @@ import numpy as np
 MAIN_WINDOW = "RealSense D415 source (before PicoBridge/WebRTC)"
 STATUS_HEIGHT = 150
 CONTRAST_SAMPLE_STEP = 4
-DEFAULT_EXPOSURE_US = 150_000.0
-DEFAULT_GAIN = 16.0
+DEFAULT_EXPOSURE_US = 30_000.0
+DEFAULT_GAIN = 48.0
 
 
 def _validate_pair(left: np.ndarray, right: np.ndarray) -> None:

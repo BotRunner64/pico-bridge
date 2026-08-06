@@ -11,8 +11,8 @@ from pico_bridge import PicoBridge, StereoCameraIntrinsics
 
 
 LOGGER = logging.getLogger("realsense_d415_sbs")
-DEFAULT_EXPOSURE_US = 150_000.0
-DEFAULT_GAIN = 16.0
+DEFAULT_EXPOSURE_US = 30_000.0
+DEFAULT_GAIN = 48.0
 
 
 def _infrared_pair_to_rgb(left: np.ndarray, right: np.ndarray) -> np.ndarray:

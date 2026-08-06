@@ -133,7 +133,7 @@ python examples/realsense_d415_sbs.py --advertise-ip 192.168.1.10
 
 默认采集规格为每眼 `1280x720`、30 fps，生成 `2560x720` 源帧。头显当前的 WebRTC 请求会将其缩放为一条合并的 `1280x360` 流，即每眼 `640x360`，并按 60 fps 发送；采集为 30 fps 时，sender 会按需重复最新源帧。可用 `--serial`、`--width`、`--height` 和 `--fps` 选择 RealSense 支持的其他规格。
 
-该示例从当前左红外 profile 读取已校正的针孔内参，并随 stereo layout 一起发送。经过实测的默认参数为手动曝光 `150000` us、gain `16`，并关闭红外点阵投射器。可用 `--exposure` 或 `--gain` 覆盖手动参数，用 `--auto-exposure` 恢复传感器自动曝光，需要投射器时可传入 `--enable-emitter`。150 ms 曝光远长于 30 fps 所请求的 33.3 ms 帧间隔，因此可能使 D415 的 rolling shutter 产生严重运动模糊，也可能降低源画面的有效帧率。相机运动时需要实测效果。该示例只发送两幅图像和内参，不发送深度、相机姿态或 D415 baseline/extrinsic 元数据。
+该示例从当前左红外 profile 读取已校正的针孔内参，并随 stereo layout 一起发送。经过实测的默认参数为手动曝光 `30000` us、gain `48`，并关闭红外点阵投射器。可用 `--exposure` 或 `--gain` 覆盖手动参数，用 `--auto-exposure` 恢复传感器自动曝光，需要投射器时可传入 `--enable-emitter`。30 ms 曝光处于 30 fps 所请求的 33.3 ms 帧间隔内，使传感器能够以请求的采集频率为目标。它仍可能使 D415 的 rolling shutter 产生运动模糊，因此相机运动时需要实测效果。该示例只发送两幅图像和内参，不发送深度、相机姿态或 D415 baseline/extrinsic 元数据。
 
 如需在不经过 PicoBridge、WebRTC 和头显的情况下本地检查 D415 源画面，请运行：
 
@@ -141,7 +141,7 @@ python examples/realsense_d415_sbs.py --advertise-ip 192.168.1.10
 python examples/realsense_d415_viewer.py
 ```
 
-Viewer 与 sender 使用相同的默认参数：手动曝光 `150000` us、gain `16`、关闭 emitter。它会显示同步的原始 IR1/IR2 帧，并报告每只眼原始亮度的最小值、平均值和最大值，以及传感器自动曝光、曝光时间、增益和投射器状态。按 `C` 可切换仅用于显示的共享百分位对比度拉伸；它不会改变原始像素或相机设置。按 `E` 切换投射器，按 `A` 切换传感器自动曝光，按 `[` 或 `]` 降低或提高手动曝光，按 `S` 保存原始 Y8 SBS PNG，按 `Q` 或 Escape 退出。可用 `--enable-emitter` 或 `--auto-contrast` 启动对应模式，用 `--auto-exposure` 启用传感器自动曝光，也可用 `--exposure` 加 `--gain` 覆盖手动默认值。同一时间只能有一个应用占用 RealSense 流，因此启动这个 Viewer 前需要停止 D415 sender 或 RealSense Viewer。
+Viewer 与 sender 使用相同的默认参数：手动曝光 `30000` us、gain `48`、关闭 emitter。它会显示同步的原始 IR1/IR2 帧，并报告每只眼原始亮度的最小值、平均值和最大值，以及传感器自动曝光、曝光时间、增益和投射器状态。按 `C` 可切换仅用于显示的共享百分位对比度拉伸；它不会改变原始像素或相机设置。按 `E` 切换投射器，按 `A` 切换传感器自动曝光，按 `[` 或 `]` 降低或提高手动曝光，按 `S` 保存原始 Y8 SBS PNG，按 `Q` 或 Escape 退出。可用 `--enable-emitter` 或 `--auto-contrast` 启动对应模式，用 `--auto-exposure` 启用传感器自动曝光，也可用 `--exposure` 加 `--gain` 覆盖手动默认值。同一时间只能有一个应用占用 RealSense 流，因此启动这个 Viewer 前需要停止 D415 sender 或 RealSense Viewer。
 
 头显会把每只输出眼的视线通过提供的源相机内参映射到图像，不再把每幅 16:9 画面强行拉满整个单眼 viewport。这样可以保持正确的角度尺度和图像比例；超出相机标定视场的区域会渐隐回 PICO passthrough。没有提供 `stereo_intrinsics` 的 SBS 来源会使用保持比例的 90 度水平 FOV 回退。
 
