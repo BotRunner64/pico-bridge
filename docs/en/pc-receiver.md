@@ -100,6 +100,49 @@ python examples/zed_mini_sbs.py --advertise-ip 192.168.1.10
 
 Replace the advertised address with the PC address reachable from the headset. The headset requests one combined `1280x360` WebRTC stream at 60 fps, giving each eye `640x360`; use `--fps 30` if the camera cannot capture at 60 fps. This option changes ZED capture cadence, while the WebRTC track remains paced at the headset's 60 fps request.
 
+The request also sets an approximately 8.39 Mbps video target. The PC sender applies it as the negotiated encoder's initial and maximum bitrate; WebRTC receiver bandwidth feedback can still reduce the live rate when the network cannot sustain it. This avoids aiortc's much lower VP8 default being used for the 60 fps SBS stream.
+
+Run the example with `--verbose` to print PC-side send bitrate, packet count, receiver-reported packet loss, and round-trip time every five seconds. The Unity receiver polls inbound statistics every two seconds, logs codec, receive bitrate, decoded and dropped frames, jitter, PLI, and NACK totals every ten seconds, and emits an immediate warning whenever loss, dropped frames, PLI, or NACK increases. The in-headset video status shows receive fps, bitrate, total packet loss (`L`), and total dropped decoded frames (`D`).
+
+```bash
+python examples/zed_mini_sbs.py --advertise-ip 192.168.1.10 --verbose
+```
+
+To inspect the camera source locally without PicoBridge, WebRTC, or the headset, install the camera extra and run the dedicated viewer:
+
+```bash
+pip install -e '.[camera]'
+python examples/zed_mini_viewer.py --fps 60
+```
+
+The viewer opens the ZED directly and displays the SDK's `SIDE_BY_SIDE` source with capture FPS, the SDK frame-drop counter, SDK-reported corrupted frames, and isolated middle-frame detections. The SDK validity check is enabled, but the diagnostic viewer displays and saves a frame reported as `CORRUPTED_FRAME` instead of silently discarding it. It also compares every three consecutive source frames; when the middle frame differs sharply from both neighbors while those neighbors match, it saves the full-resolution diagnostic sequence and keeps a `before | suspect | after` window open.
+
+Press `R` to start or stop a full-resolution, lossless FFV1 recording in a Matroska (`.mkv`) container. The recording contains the raw SBS frames without viewer text or borders. A matching `.frames.jsonl` file records each source-frame index, ZED image timestamp, SDK grab status, camera drop count, validity result, and isolated-frame event; a `.summary.json` file records the final written-frame and recording-queue-drop totals. Encoding runs on a background thread, and the viewer reports queued frames and queue drops in the status bar. Increase `--record-queue-size` from its 60-frame default if storage has short write stalls and enough memory is available. FFV1 is lossless and can consume disk space quickly.
+
+Captures and recordings are written to the platform temporary directory under `zed-mini-viewer` by default; override it with `--capture-dir`. Press `S` to save the current raw frame and `Q` or Escape to stop any active recording and quit. Only one application can own the ZED at a time, so stop the bridge sender and ZED Explorer before starting the viewer.
+
+### RealSense D415 stereo infrared quick start
+
+The D415 has one RGB sensor, so it cannot provide a left/right stereo color pair. The `realsense_d415_sbs.py` example instead captures the synchronized, rectified Y8 streams from infrared indices 1 and 2, copies each grayscale value into three RGB channels, and packs them as left/right SBS video:
+
+```bash
+cd pc_receiver
+pip install -e '.[camera]'
+python examples/realsense_d415_sbs.py --advertise-ip 192.168.1.10
+```
+
+The default capture profile is `1280x720` at 30 fps per eye, producing a `2560x720` source frame. The headset's current WebRTC request scales that to one combined `1280x360` stream, or `640x360` per eye, paced at 60 fps; when capture runs at 30 fps, the sender repeats the latest source frame as needed. Use `--serial`, `--width`, `--height`, and `--fps` to select another supported RealSense profile.
+
+The example reads the rectified pinhole intrinsics from the active left infrared profile and sends them with the stereo layout. Its tested defaults are manual exposure `150000` us, gain `16`, and the infrared dot projector disabled. Pass `--exposure` or `--gain` to override the manual values, `--auto-exposure` to return to sensor auto exposure, or `--enable-emitter` if the projector is needed. A 150 ms exposure is much longer than the 33.3 ms frame interval requested at 30 fps, so it can cause severe motion blur on the D415's rolling shutter and may reduce the effective source frame rate. Verify the result for moving-camera use. The example sends only the two images and intrinsics, not depth, camera pose, or D415 baseline/extrinsic metadata.
+
+To inspect the D415 source locally without PicoBridge, WebRTC, or the headset, run:
+
+```bash
+python examples/realsense_d415_viewer.py
+```
+
+The viewer uses the same manual exposure `150000` us, gain `16`, and disabled-emitter defaults as the sender. It displays the synchronized raw IR1/IR2 frames and reports each eye's raw minimum, mean, and maximum brightness together with sensor auto-exposure, exposure, gain, and emitter state. Press `C` to toggle a shared percentile contrast stretch for display only; this does not change raw pixels or camera settings. Press `E` to toggle the projector, `A` to toggle sensor auto-exposure, `[` or `]` to reduce or increase manual exposure, `S` to save a raw Y8 SBS PNG, and `Q` or Escape to quit. Use `--enable-emitter` or `--auto-contrast` to start with those modes enabled, `--auto-exposure` to start with sensor auto exposure, and `--exposure` plus `--gain` to override the manual defaults. Only one application can own the RealSense streams at a time, so stop the D415 sender or RealSense Viewer before starting this viewer.
+
 The headset maps each output-eye ray through the supplied source-camera intrinsics instead of stretching each 16:9 image over the complete eye viewport. This preserves angular scale and image proportions; areas beyond the camera's calibrated field of view feather back to PICO passthrough. An SBS source without `stereo_intrinsics` uses an aspect-preserving 90-degree horizontal-FOV fallback.
 
 The display is still head-locked: it does not reproject the camera image using a timestamped camera pose, depth-warp it, or align it geometrically with the physical world. If the eyes are reversed or the decoded texture is upside down, use `Swap Eyes` or `Flip Y` on the scene's `StereoVideoScreen` component.
@@ -117,6 +160,8 @@ Example scripts:
 ```bash
 python pc_receiver/examples/opencv_camera.py --device 0
 python pc_receiver/examples/realsense_camera.py --serial RS123
+python pc_receiver/examples/realsense_d415_sbs.py --advertise-ip 192.168.1.10
+python pc_receiver/examples/realsense_d415_viewer.py
 python pc_receiver/examples/mujoco_camera.py path/to/model.xml --camera camera_name
 python pc_receiver/examples/zed_mini_sbs.py --advertise-ip 192.168.1.10
 ```

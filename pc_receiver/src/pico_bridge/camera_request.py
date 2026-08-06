@@ -6,6 +6,10 @@ from dataclasses import dataclass
 from typing import Any
 
 
+MIN_VIDEO_BITRATE = 250_000
+MAX_VIDEO_BITRATE = 50_000_000
+
+
 @dataclass
 class CameraRequest:
     """Parsed StartReceivePcCamera parameters."""
@@ -18,6 +22,14 @@ class CameraRequest:
     bitrate: int = 8 * 1024 * 1024
     codec: str = "webrtc"
     source: str = "frames"
+
+    def __post_init__(self) -> None:
+        self.bitrate = int(self.bitrate)
+        if not MIN_VIDEO_BITRATE <= self.bitrate <= MAX_VIDEO_BITRATE:
+            raise ValueError(
+                "video bitrate must be between "
+                f"{MIN_VIDEO_BITRATE} and {MAX_VIDEO_BITRATE} bits per second"
+            )
 
     @classmethod
     def from_json(cls, obj: dict[str, Any]) -> "CameraRequest":

@@ -10,6 +10,7 @@ import types
 import numpy as np
 import pytest
 
+import pico_bridge.webrtc_sender as webrtc_sender_module
 from pico_bridge.camera_request import CameraRequest
 from pico_bridge.protocol import CMD, HEAD_VR_TO_PC, Packet
 from pico_bridge.tcp_server import PicoBridgeServer
@@ -17,7 +18,9 @@ from pico_bridge.webrtc_sender import (
     ExternalVideoFrameSource,
     ExternalVideoTrack,
     WebRtcVideoSender,
+    _apply_codec_bitrate_override,
     _make_rgb_test_frame,
+    _restore_codec_bitrate_override,
 )
 
 
@@ -50,6 +53,11 @@ class TestCameraRequest:
         with pytest.raises(ValueError):
             CameraRequest.from_json({"codec": "h264", "ip": "10.0.0.1", "port": 1234})
 
+    @pytest.mark.parametrize("bitrate", [249_999, 50_000_001])
+    def test_rejects_out_of_range_bitrate(self, bitrate):
+        with pytest.raises(ValueError, match="video bitrate"):
+            CameraRequest.from_json({"codec": "webrtc", "bitrate": bitrate})
+
 
 class TestWebRtcPattern:
     def test_make_rgb_test_frame(self):
@@ -77,6 +85,20 @@ class TestWebRtcPattern:
         req = CameraRequest(codec="h264")
         with pytest.raises(ValueError):
             asyncio.run(sender.start(req))
+
+    def test_requested_bitrate_configures_aiortc_encoders(self):
+        from aiortc.codecs import h264, vpx
+
+        overrides = _apply_codec_bitrate_override(8_000_000)
+        try:
+            assert vpx.DEFAULT_BITRATE == 8_000_000
+            assert vpx.MAX_BITRATE == 8_000_000
+            assert vpx.Vp8Encoder().target_bitrate == 8_000_000
+            assert h264.DEFAULT_BITRATE == 8_000_000
+            assert h264.MAX_BITRATE == 8_000_000
+            assert h264.H264Encoder().target_bitrate == 8_000_000
+        finally:
+            _restore_codec_bitrate_override(overrides)
 
     def test_sender_cleans_up_when_offer_signal_fails(self, monkeypatch):
         peers = []
@@ -123,6 +145,42 @@ class TestWebRtcPattern:
         assert sender.is_running is False
         assert len(peers) == 1
         assert peers[0].closed is True
+
+    def test_sender_stats_logs_rtcp_loss_fraction(self, monkeypatch, caplog):
+        async def send_signal(_name, _value):
+            pass
+
+        sender = WebRtcVideoSender(send_signal)
+        peer = object()
+        generation = 3
+        sender._pc = peer
+        sender._generation = generation
+        monkeypatch.setattr(webrtc_sender_module, "_SENDER_STATS_INTERVAL_SECONDS", 0)
+
+        class FakeRtpSender:
+            async def getStats(self):
+                sender._pc = None
+                return {
+                    "outbound": types.SimpleNamespace(
+                        type="outbound-rtp",
+                        kind="video",
+                        bytesSent=10_000,
+                        packetsSent=100,
+                    ),
+                    "remote": types.SimpleNamespace(
+                        type="remote-inbound-rtp",
+                        kind="video",
+                        packetsLost=1,
+                        fractionLost=1,
+                        roundTripTime=0.012,
+                    ),
+                }
+
+        with caplog.at_level("INFO", logger="pico_bridge.webrtc"):
+            asyncio.run(sender._log_stats_loop(peer, FakeRtpSender(), generation))
+
+        assert "recent=0.39%" in caplog.text
+        assert "lost=1 rtt=12.0 ms" in caplog.text
 
     def test_external_frame_source_validates_rgb_uint8(self):
         source = ExternalVideoFrameSource()

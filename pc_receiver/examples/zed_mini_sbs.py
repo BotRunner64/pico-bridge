@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 
 import numpy as np
 
@@ -14,7 +15,13 @@ def main() -> None:
     parser.add_argument("--tcp-port", type=int, default=63901)
     parser.add_argument("--advertise-ip")
     parser.add_argument("--fps", type=int, choices=(15, 30, 60), default=60)
+    parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
+
+    logging.basicConfig(
+        level=logging.INFO if args.verbose else logging.WARNING,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
 
     try:
         import pyzed.sl as sl
@@ -28,6 +35,7 @@ def main() -> None:
     init.camera_resolution = sl.RESOLUTION.HD720
     init.camera_fps = args.fps
     init.depth_mode = sl.DEPTH_MODE.NONE
+    init.enable_image_validity_check = 1
 
     error = zed.open(init)
     if error != sl.ERROR_CODE.SUCCESS:

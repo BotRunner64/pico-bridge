@@ -232,9 +232,11 @@ namespace PicoBridge.UI
                 else if (!manager.AllowPcVideoPreview)
                     view.cameraStatusText.text = "Video disabled by PC";
                 else if (hasSignal)
-                    view.cameraStatusText.text = camera.LastFrameIntervalMs > 0f
-                        ? $"Video live  {camera.FrameCount}  {camera.LastFrameIntervalMs:0} ms"
-                        : $"Video live  {camera.FrameCount}";
+                    view.cameraStatusText.text = camera.ReceiveFps > 0f
+                        ? $"Video live  {camera.ReceiveFps:0} fps  " +
+                          $"{camera.ReceiveBitrateMbps:0.0} Mbps  " +
+                          $"L{camera.PacketsLost}/D{camera.FramesDropped}"
+                        : "Video live";
                 else
                     view.cameraStatusText.text = camera != null ? camera.Status : "Video waiting";
             }

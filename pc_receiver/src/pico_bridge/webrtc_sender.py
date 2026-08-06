@@ -20,8 +20,16 @@ SignalSender = Callable[[str, Any], Awaitable[None]]
 
 try:  # Keep unit tests importable before optional runtime deps are installed.
     from aiortc import VideoStreamTrack as _VideoStreamTrackBase
+    from aiortc.codecs import h264 as _aiortc_h264
+    from aiortc.codecs import vpx as _aiortc_vpx
 except Exception:  # pragma: no cover - exercised only in environments without aiortc
     _VideoStreamTrackBase = object
+    _aiortc_h264 = None
+    _aiortc_vpx = None
+
+
+_SENDER_STATS_INTERVAL_SECONDS = 5.0
+
 
 class TestPatternTrack(_VideoStreamTrackBase):
     """aiortc-compatible synthetic video track."""
@@ -152,6 +160,8 @@ class WebRtcVideoSender:
         self._frame_source = frame_source
         self._pc: Any | None = None
         self._track: Any | None = None
+        self._stats_task: asyncio.Task | None = None
+        self._codec_bitrate_overrides: list[tuple[Any, int, int]] = []
         self._running = False
         self._lock = asyncio.Lock()
         self._generation = 0
@@ -197,18 +207,29 @@ class WebRtcVideoSender:
                     asyncio.create_task(self._stop_if_still_disconnected(pc, generation))
 
             try:
+                self._codec_bitrate_overrides = _apply_codec_bitrate_override(req.bitrate)
                 track = self._create_track(req)
                 self._track = track
-                pc.addTrack(track)
+                rtp_sender = pc.addTrack(track)
                 offer = await pc.createOffer()
                 await pc.setLocalDescription(offer)
                 local = pc.localDescription
                 await self._send_signal("WebRtcOffer", {"type": local.type, "sdp": local.sdp})
+                if rtp_sender is not None and hasattr(rtp_sender, "getStats"):
+                    self._stats_task = asyncio.create_task(
+                        self._log_stats_loop(pc, rtp_sender, generation)
+                    )
             except Exception:
                 await self._stop_locked()
                 raise
 
-            log.info("WebRTC offer sent (%dx%d @%dfps)", req.width, req.height, req.fps)
+            log.info(
+                "WebRTC offer sent (%dx%d @%dfps, target %.2f Mbps)",
+                req.width,
+                req.height,
+                req.fps,
+                req.bitrate / 1_000_000,
+            )
 
     def _create_track(self, req: CameraRequest) -> Any:
         if self._source == "frames":
@@ -268,9 +289,14 @@ class WebRtcVideoSender:
     async def _stop_locked(self) -> None:
         pc = self._pc
         track = self._track
+        stats_task = self._stats_task
         self._pc = None
         self._track = None
+        self._stats_task = None
         self._running = False
+        if stats_task is not None and stats_task is not asyncio.current_task():
+            stats_task.cancel()
+            await asyncio.gather(stats_task, return_exceptions=True)
         if track is not None:
             try:
                 track.stop()
@@ -282,6 +308,134 @@ class WebRtcVideoSender:
             except Exception as exc:  # pragma: no cover - defensive around native aiortc internals
                 log.debug("Ignoring WebRTC peer close error: %s", exc)
             log.info("WebRTC sender stopped")
+        _restore_codec_bitrate_override(self._codec_bitrate_overrides)
+        self._codec_bitrate_overrides = []
+
+    async def _log_stats_loop(self, pc: Any, rtp_sender: Any, generation: int) -> None:
+        last_bytes_sent: int | None = None
+        last_packets_lost = 0
+        last_sample_at = time.monotonic()
+
+        while self._pc is pc and self._generation == generation:
+            await asyncio.sleep(_SENDER_STATS_INTERVAL_SECONDS)
+            if self._pc is not pc or self._generation != generation:
+                return
+
+            try:
+                report = await rtp_sender.getStats()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                log.exception("failed to read WebRTC sender stats")
+                continue
+
+            outbound = next(
+                (
+                    item
+                    for item in report.values()
+                    if getattr(item, "type", None) == "outbound-rtp"
+                    and getattr(item, "kind", None) == "video"
+                ),
+                None,
+            )
+            remote_inbound = next(
+                (
+                    item
+                    for item in report.values()
+                    if getattr(item, "type", None) == "remote-inbound-rtp"
+                    and getattr(item, "kind", None) == "video"
+                ),
+                None,
+            )
+            if outbound is None:
+                continue
+
+            now = time.monotonic()
+            bytes_sent = int(getattr(outbound, "bytesSent", 0))
+            bitrate_mbps = 0.0
+            if last_bytes_sent is not None and now > last_sample_at:
+                bitrate_mbps = (
+                    (bytes_sent - last_bytes_sent)
+                    * 8
+                    / (now - last_sample_at)
+                    / 1_000_000
+                )
+            last_bytes_sent = bytes_sent
+            last_sample_at = now
+
+            packets_lost = (
+                int(getattr(remote_inbound, "packetsLost", 0))
+                if remote_inbound is not None
+                else 0
+            )
+            fraction_lost_raw = (
+                float(getattr(remote_inbound, "fractionLost", 0.0))
+                if remote_inbound is not None
+                else 0.0
+            )
+            # aiortc exposes the RTCP 8-bit fixed-point loss fraction here.
+            fraction_lost = fraction_lost_raw / 256
+            round_trip_ms = (
+                float(getattr(remote_inbound, "roundTripTime", 0.0)) * 1000
+                if remote_inbound is not None
+                else 0.0
+            )
+            if packets_lost > last_packets_lost:
+                log.warning(
+                    "WebRTC receiver reported %d new lost packets "
+                    "(total=%d, recent=%.2f%%)",
+                    packets_lost - last_packets_lost,
+                    packets_lost,
+                    fraction_lost * 100,
+                )
+            last_packets_lost = packets_lost
+
+            log.info(
+                "WebRTC send stats: %.2f Mbps packets=%d lost=%d rtt=%.1f ms",
+                bitrate_mbps,
+                int(getattr(outbound, "packetsSent", 0)),
+                packets_lost,
+                round_trip_ms,
+            )
+
+
+def _apply_codec_bitrate_override(bitrate: int) -> list[tuple[Any, int, int]]:
+    """Apply the request while an aiortc 1.x video sender is active.
+
+    aiortc 1.x has no public sender-parameter API for video bitrate. Its
+    bundled encoders read module defaults when the negotiated encoder is
+    created and use the module maximum for later REMB rate updates. Keep the
+    values overridden only for this sender's lifetime.
+    """
+
+    overrides: list[tuple[Any, int, int]] = []
+    for codec_module in (_aiortc_vpx, _aiortc_h264):
+        if codec_module is None:
+            continue
+        if not hasattr(codec_module, "DEFAULT_BITRATE") or not hasattr(
+            codec_module, "MAX_BITRATE"
+        ):
+            continue
+
+        old_default = int(codec_module.DEFAULT_BITRATE)
+        old_maximum = int(codec_module.MAX_BITRATE)
+        minimum = int(getattr(codec_module, "MIN_BITRATE", 1))
+        target = max(int(bitrate), minimum)
+        overrides.append((codec_module, old_default, old_maximum))
+        codec_module.DEFAULT_BITRATE = target
+        codec_module.MAX_BITRATE = target
+
+    if not overrides:
+        log.warning(
+            "aiortc codec bitrate controls are unavailable; requested bitrate was not applied"
+        )
+    return overrides
+
+
+def _restore_codec_bitrate_override(overrides: list[tuple[Any, int, int]]) -> None:
+    for codec_module, old_default, old_maximum in reversed(overrides):
+        codec_module.DEFAULT_BITRATE = old_default
+        codec_module.MAX_BITRATE = old_maximum
 
 
 def _session_description_from_value(value: Any) -> dict[str, str]:

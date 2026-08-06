@@ -100,6 +100,49 @@ python examples/zed_mini_sbs.py --advertise-ip 192.168.1.10
 
 请把广播地址替换为头显能够访问的 PC 地址。头显会请求一条 60 fps 的合并 `1280x360` WebRTC 流，每只眼得到 `640x360`；如果相机无法以 60 fps 捕获，可使用 `--fps 30`。这个选项只改变 ZED 捕获频率，WebRTC track 仍按头显请求的 60 fps 节奏发送。
 
+该请求还会设置约 8.39 Mbps 的视频目标码率。PC sender 会把它应用为协商编码器的初始码率和最高码率；当网络无法承载时，WebRTC receiver 的带宽反馈仍可降低实时码率。这样可以避免 60 fps SBS 流继续使用 aiortc 低得多的 VP8 默认码率。
+
+使用 `--verbose` 运行示例，可以每五秒打印 PC 端发送码率、数据包数量、receiver 报告的丢包和往返时间。Unity receiver 每两秒轮询一次入站统计，每十秒记录 codec、接收码率、已解码帧、丢帧、jitter、PLI 和 NACK 总数；丢包、解码丢帧、PLI 或 NACK 增加时会立即输出 warning。头显内视频状态会显示接收 fps、码率、累计丢包（`L`）和累计解码丢帧（`D`）。
+
+```bash
+python examples/zed_mini_sbs.py --advertise-ip 192.168.1.10 --verbose
+```
+
+如果要在不经过 PicoBridge、WebRTC 和头显的情况下直接检查相机源，请安装 camera extra 并运行专用本地 Viewer：
+
+```bash
+pip install -e '.[camera]'
+python examples/zed_mini_viewer.py --fps 60
+```
+
+Viewer 会直接打开 ZED，显示 SDK 的 `SIDE_BY_SIDE` 源画面，并显示采集 FPS、SDK 丢帧计数、SDK 报告的坏帧数以及孤立中间帧检测数。SDK 有效性检查保持启用，但为了诊断，Viewer 遇到 SDK 报告的 `CORRUPTED_FRAME` 时会显示并保存该帧，而不是静默丢弃。它还会比较每三个连续源帧；如果中间帧与前后两帧差异很大、而前后两帧彼此一致，就会保存全分辨率诊断序列，并持续显示 `before | suspect | after` 对照窗口。
+
+按 `R` 可以开始或停止全分辨率、无损 FFV1 录像，容器格式为 Matroska（`.mkv`）。录像只包含没有 Viewer 文字和边框的原始 SBS 帧。配套的 `.frames.jsonl` 文件会逐帧记录源帧编号、ZED 图像时间戳、SDK grab 状态、相机丢帧计数、有效性结果和孤立帧事件；`.summary.json` 文件会记录最终写入帧数和录像队列丢帧总数。编码在后台线程执行，Viewer 状态栏会显示排队帧数和队列丢帧数。如果存储设备会短暂阻塞且内存充足，可以把 `--record-queue-size` 从默认的 60 帧调大。FFV1 是无损格式，会很快占用大量磁盘空间。
+
+默认截图和录像目录是系统临时目录下的 `zed-mini-viewer`，可通过 `--capture-dir` 修改。按 `S` 保存当前原始帧，按 `Q` 或 Escape 会先结束正在进行的录像再退出。同一时间只能有一个应用占用 ZED，因此启动 Viewer 前需要停止 bridge sender 和 ZED Explorer。
+
+### RealSense D415 双目红外快速启动
+
+D415 只有一个 RGB 传感器，因此无法提供左右双目彩色画面。`realsense_d415_sbs.py` 示例改为捕获 infrared index 1 和 2 的同步、已校正 Y8 流，把每个灰度值复制到三个 RGB 通道，再拼成左/右 SBS 视频：
+
+```bash
+cd pc_receiver
+pip install -e '.[camera]'
+python examples/realsense_d415_sbs.py --advertise-ip 192.168.1.10
+```
+
+默认采集规格为每眼 `1280x720`、30 fps，生成 `2560x720` 源帧。头显当前的 WebRTC 请求会将其缩放为一条合并的 `1280x360` 流，即每眼 `640x360`，并按 60 fps 发送；采集为 30 fps 时，sender 会按需重复最新源帧。可用 `--serial`、`--width`、`--height` 和 `--fps` 选择 RealSense 支持的其他规格。
+
+该示例从当前左红外 profile 读取已校正的针孔内参，并随 stereo layout 一起发送。经过实测的默认参数为手动曝光 `150000` us、gain `16`，并关闭红外点阵投射器。可用 `--exposure` 或 `--gain` 覆盖手动参数，用 `--auto-exposure` 恢复传感器自动曝光，需要投射器时可传入 `--enable-emitter`。150 ms 曝光远长于 30 fps 所请求的 33.3 ms 帧间隔，因此可能使 D415 的 rolling shutter 产生严重运动模糊，也可能降低源画面的有效帧率。相机运动时需要实测效果。该示例只发送两幅图像和内参，不发送深度、相机姿态或 D415 baseline/extrinsic 元数据。
+
+如需在不经过 PicoBridge、WebRTC 和头显的情况下本地检查 D415 源画面，请运行：
+
+```bash
+python examples/realsense_d415_viewer.py
+```
+
+Viewer 与 sender 使用相同的默认参数：手动曝光 `150000` us、gain `16`、关闭 emitter。它会显示同步的原始 IR1/IR2 帧，并报告每只眼原始亮度的最小值、平均值和最大值，以及传感器自动曝光、曝光时间、增益和投射器状态。按 `C` 可切换仅用于显示的共享百分位对比度拉伸；它不会改变原始像素或相机设置。按 `E` 切换投射器，按 `A` 切换传感器自动曝光，按 `[` 或 `]` 降低或提高手动曝光，按 `S` 保存原始 Y8 SBS PNG，按 `Q` 或 Escape 退出。可用 `--enable-emitter` 或 `--auto-contrast` 启动对应模式，用 `--auto-exposure` 启用传感器自动曝光，也可用 `--exposure` 加 `--gain` 覆盖手动默认值。同一时间只能有一个应用占用 RealSense 流，因此启动这个 Viewer 前需要停止 D415 sender 或 RealSense Viewer。
+
 头显会把每只输出眼的视线通过提供的源相机内参映射到图像，不再把每幅 16:9 画面强行拉满整个单眼 viewport。这样可以保持正确的角度尺度和图像比例；超出相机标定视场的区域会渐隐回 PICO passthrough。没有提供 `stereo_intrinsics` 的 SBS 来源会使用保持比例的 90 度水平 FOV 回退。
 
 显示仍然是头锁定的：它不会使用带时间戳的相机姿态重投影画面，也不会执行深度扭曲或让画面与物理世界做几何对齐。如果左右眼颠倒或解码纹理上下翻转，可在场景的 `StereoVideoScreen` 组件上使用 `Swap Eyes` 或 `Flip Y`。
@@ -117,6 +160,8 @@ with PicoBridge(video="frames", video_enabled=False) as pico:
 ```bash
 python pc_receiver/examples/opencv_camera.py --device 0
 python pc_receiver/examples/realsense_camera.py --serial RS123
+python pc_receiver/examples/realsense_d415_sbs.py --advertise-ip 192.168.1.10
+python pc_receiver/examples/realsense_d415_viewer.py
 python pc_receiver/examples/mujoco_camera.py path/to/model.xml --camera camera_name
 python pc_receiver/examples/zed_mini_sbs.py --advertise-ip 192.168.1.10
 ```
